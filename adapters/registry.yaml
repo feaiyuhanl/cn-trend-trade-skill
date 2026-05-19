@@ -1,0 +1,17 @@
+# 数据源适配器注册表（P3）
+# 新增 adapter：实现 apply(pack) -> pack，并在此注册
+
+version: "1.0.0"
+
+adapters:
+  - id: tushare_market
+    slot: market
+    module: adapters.tushare_market
+    description: 行情 K 线、指数、广度（live 模式由 assemble 调用 fetch_live）
+    optional: false
+
+  - id: consultation_stub
+    slot: consultation
+    module: adapters.consultation_stub
+    description: 咨询/新闻占位 slot（可替换为真实数据源）
+    optional: true

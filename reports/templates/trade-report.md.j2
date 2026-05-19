@@ -1,0 +1,77 @@
+# 趋势交易分析 · {{ symbols_summary }} · {{ meta.as_of }}
+
+> 模式：{{ meta.session_mode }}  
+> Run ID：{{ meta.run_id }}  
+> 规则版本：{{ meta.rules_version }} / profile：{{ meta.rules_profile }}  
+> 免责声明：见项目 DISCLAIMER.md，**不构成投资建议**。
+
+> 完整推理链见 `decision-dossier.md`；事实审计见 `audit-sheet.md`。
+
+## 一、市场环境（大盘过滤）
+
+| 项目 | 结论 |
+|------|------|
+| 环境判断 | {{ market_filter.regime_inference }} |
+| 新开趋势仓 | {{ market_filter.allow_new_trend_trade }} |
+| 置信度 | {{ market_filter.confidence }} |
+| 参考指数 | {{ market_filter.indices_considered | join(', ') }} |
+
+**推理摘要**：{{ market_filter.reasoning_summary }}
+
+## 二、个股决策
+
+{% for s in symbols %}
+### {{ s.ts_code }} {{ s.name }}
+
+| 维度 | 结论 |
+|------|------|
+| 趋势阶段 | {{ s.phase }} |
+| 强度 D/W/M | {{ s.strength_line }} |
+| 入场类型 | {{ s.entry_type }} |
+| 建议动作 | {{ s.entry_action }} |
+
+**入场/加仓**：{{ s.entry_rationale }}
+
+**引用事实（📊）**：
+
+| fact_key | 值 |
+|----------|-----|
+{% for f in s.facts_rows %}| `{{ f.key }}` | {{ f.value }} |
+{% endfor %}{% if not s.facts_rows %}| （无） | |
+{% endif %}
+
+**仓位（computed，脚本）**：`{{ s.computed_json }}`
+
+**仓位（framework，定性）**：`{{ s.framework_json }}`
+
+**出场计划**：`{{ s.exit_json }}`
+
+**持仓复盘**：`{{ s.holding_json }}`
+
+---
+{% endfor %}
+
+## 三、交易纪律自检
+
+| rule_id | 规则 | 通过 | 备注 |
+|---------|------|------|------|
+{% for d in discipline %}| {{ d.rule_id }} | {{ d.rule }} | {{ '✓' if d.passed else '✗' }} | {{ d.note or '' }} |
+{% endfor %}
+
+## 四、数据缺口（gaps）
+
+{% for g in gaps %}- {{ g }}
+{% else %}- （无）
+{% endfor %}
+
+## 五、推理链摘要
+
+| 步骤 | Lens | 核心推断 | 置信度 |
+|------|------|----------|--------|
+{% for step in steps %}| {{ step.step }} | {{ step.lens }} | {{ step.inference }} | {{ step.confidence }} |
+{% endfor %}
+
+## 六、数据源状态
+
+{% for src in sources %}- {{ src.id }}: {{ src.status }} — {{ src.message or '' }}
+{% endfor %}

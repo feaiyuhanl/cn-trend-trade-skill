@@ -1,0 +1,34 @@
+# 趋势交易复盘 · {{ meta.as_of }}
+
+> 免责声明：个人学习记录，不构成投资建议。  
+> Run ID：{{ meta.run_id }}
+
+## 计划 vs 实际
+
+| 标的 | 计划阶段/动作 | 实际 | 偏差 |
+|------|---------------|------|------|
+{% for r in rows %}| {{ r.ts_code }} {{ r.name }} | {{ r.planned or '—' }} | {{ r.actual or '—' }} | {{ r.deviation or '—' }} |
+{% else %}| … | … | … | … |
+{% endfor %}
+
+## 阶段判断准确度
+
+{{ review.phase_accuracy or '—' }}
+
+## 纪律违反
+
+{% for v in violations %}- {{ v }}
+{% else %}- （无记录）
+{% endfor %}
+
+## 经验教训
+
+{% for lesson in lessons %}{{ loop.index }}. {{ lesson }}
+{% else %}1. …
+{% endfor %}
+
+## 下一步改进
+
+{% for imp in improvements %}- {{ imp }}
+{% else %}- …
+{% endfor %}

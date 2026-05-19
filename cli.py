@@ -21,6 +21,15 @@ if str(_ROOT) not in sys.path:
 
 from core.assemble import OUT_PACK, OUT_TRACE, assemble, copy_fixture_trace, save_trace  # noqa: E402
 from core.journal import list_journal_dates, load_journal, save_journal  # noqa: E402
+from core.enrich_trace import enrich_trace  # noqa: E402
+from core.pipeline import finalize_trace  # noqa: E402
+from core.report_render import (  # noqa: E402
+    render_audit_sheet,
+    render_decision_dossier,
+    render_review_report,
+    render_trade_report,
+)
+from core.rules_engine import load_rules_config  # noqa: E402
 from core.validate import (  # noqa: E402
     load_json,
     validate_market_pack,
@@ -74,6 +83,11 @@ def cmd_validate_pack(args: argparse.Namespace) -> int:
 def cmd_validate_trace(args: argparse.Namespace) -> int:
     path = Path(args.path)
     data = load_json(path)
+    if args.enrich and args.pack:
+        pack = load_json(Path(args.pack))
+        data = enrich_trace(data, pack)
+        save_trace(data, path)
+        print(f"OK enriched trace -> {path}")
     errs = validate_trade_trace(data)
     if args.pack:
         pack = load_json(Path(args.pack))
@@ -83,6 +97,65 @@ def cmd_validate_trace(args: argparse.Namespace) -> int:
             print(f"FAIL {e}", file=sys.stderr)
         return 1
     print(f"OK trade_trace {path}")
+    return 0
+
+
+def cmd_enrich_trace(args: argparse.Namespace) -> int:
+    trace = load_json(Path(args.trace))
+    pack = load_json(Path(args.pack))
+    enrich_trace(trace, pack)
+    out = Path(args.out) if args.out else Path(args.trace)
+    save_trace(trace, out)
+    print(f"OK enriched -> {out}")
+    return 0
+
+
+def cmd_render_report(args: argparse.Namespace) -> int:
+    trace = load_json(Path(args.trace))
+    pack = load_json(Path(args.pack)) if args.pack else None
+    kind = args.report_kind or "trade"
+    if kind == "dossier":
+        text = render_decision_dossier(trace, pack)
+    elif kind == "audit":
+        text = render_audit_sheet(trace, pack)
+    elif kind == "review":
+        text = render_review_report(trace, pack)
+    else:
+        text = render_trade_report(trace, pack)
+    if args.out:
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(text, encoding="utf-8")
+        print(f"OK {kind} report -> {out}")
+    else:
+        print(text)
+    return 0
+
+
+def cmd_finalize(args: argparse.Namespace) -> int:
+    trace_path = Path(args.finalize)
+    pack_path = Path(args.pack)
+    out_dir = Path(args.out_dir) if args.out_dir else trace_path.parent
+    code, errs = finalize_trace(trace_path, pack_path, out_dir=out_dir)
+    if code != 0:
+        for e in errs:
+            print(f"FAIL {e}", file=sys.stderr)
+        print(f"FAIL validation-errors -> {out_dir / 'validation-errors.md'}", file=sys.stderr)
+        return 1
+    print(f"OK enriched trace -> {trace_path}")
+    print(f"OK report -> {out_dir / 'report.md'}")
+    print(f"OK decision-dossier -> {out_dir / 'decision-dossier.md'}")
+    print(f"OK audit-sheet -> {out_dir / 'audit-sheet.md'}")
+    if load_json(Path(args.finalize)).get("review"):
+        print(f"OK review-report -> {out_dir / 'review-report.md'}")
+    return 0
+
+
+def cmd_list_rules(_args: argparse.Namespace) -> int:
+    rules = load_rules_config()
+    print(f"rules version {rules.get('version')} default_profile={rules.get('default_profile')}")
+    for r in rules.get("machine_rules", []):
+        print(f"  [{r.get('severity')}] {r['id']}: {r.get('description')}")
     return 0
 
 
@@ -162,7 +235,27 @@ def main() -> int:
     parser.add_argument("--copy-trace", action="store_true", help="复制 sample trace")
     parser.add_argument("--validate-pack", nargs="?", const=str(OUT_PACK), metavar="PATH")
     parser.add_argument("--validate-trace", metavar="PATH")
-    parser.add_argument("--pack", help="与 --validate-trace 联用")
+    parser.add_argument("--pack", help="与 --validate-trace / --enrich-trace / --render-report 联用")
+    parser.add_argument("--enrich", action="store_true", help="validate 前注入 computed 字段")
+    parser.add_argument("--enrich-trace", metavar="PATH", help="注入 position_plan.computed 等")
+    parser.add_argument("--out", help="--enrich-trace / --render-report 输出路径")
+    parser.add_argument("--render-report", metavar="PATH", help="从 trace 渲染报告（禁止新数字）")
+    parser.add_argument(
+        "--report-kind",
+        choices=["trade", "dossier", "audit", "review"],
+        default="trade",
+        help="配合 --render-report：trade | dossier | audit",
+    )
+    parser.add_argument(
+        "--finalize",
+        metavar="TRACE",
+        help="enrich + validate + 渲染 report/dossier/audit（需 --pack）",
+    )
+    parser.add_argument(
+        "--out-dir",
+        help="配合 --finalize：报告输出目录（默认 trace 同目录）",
+    )
+    parser.add_argument("--list-rules", action="store_true", help="列出机检规则")
     parser.add_argument("--save-journal", metavar="FILE", help="保存复盘日记 JSON 条目")
     parser.add_argument("--journal-date", help="YYYYMMDD，配合 --save-journal")
     parser.add_argument("--list-journal", action="store_true", help="列出日记日期")
@@ -186,7 +279,36 @@ def main() -> int:
     if args.validate_pack is not None:
         return cmd_validate_pack(argparse.Namespace(path=args.validate_pack))
     if args.validate_trace:
-        return cmd_validate_trace(argparse.Namespace(path=args.validate_trace, pack=args.pack))
+        return cmd_validate_trace(
+            argparse.Namespace(
+                path=args.validate_trace,
+                pack=args.pack,
+                enrich=args.enrich,
+            )
+        )
+    if args.enrich_trace:
+        if not args.pack:
+            print("--enrich-trace requires --pack", file=sys.stderr)
+            return 1
+        return cmd_enrich_trace(
+            argparse.Namespace(trace=args.enrich_trace, pack=args.pack, out=args.out)
+        )
+    if args.finalize:
+        if not args.pack:
+            print("--finalize requires --pack", file=sys.stderr)
+            return 1
+        return cmd_finalize(args)
+    if args.render_report:
+        return cmd_render_report(
+            argparse.Namespace(
+                trace=args.render_report,
+                pack=args.pack,
+                out=args.out,
+                report_kind=args.report_kind,
+            )
+        )
+    if args.list_rules:
+        return cmd_list_rules(args)
 
     parser.print_help()
     return 0

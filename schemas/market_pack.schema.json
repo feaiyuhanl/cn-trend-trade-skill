@@ -25,7 +25,8 @@
           "type": "array",
           "items": { "type": "string" }
         },
-        "indices_profile": { "type": "string" }
+        "indices_profile": { "type": "string" },
+        "rules_profile": { "type": "string" }
       }
     },
     "symbols": {
@@ -42,9 +43,59 @@
     "market_breadth": {
       "type": ["array", "null"],
       "items": { "$ref": "#/$defs/breadth_snapshot" }
-    }
+    },
+    "fact_index": { "$ref": "#/$defs/fact_index" },
+    "slots": { "$ref": "#/$defs/slots" }
   },
   "$defs": {
+    "slots": {
+      "type": "object",
+      "properties": {
+        "consultation": { "$ref": "#/$defs/consultation_slot" }
+      },
+      "additionalProperties": true
+    },
+    "consultation_slot": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/consultation_item" }
+        },
+        "meta": {
+          "type": "object",
+          "properties": {
+            "adapter_id": { "type": "string" },
+            "status": { "type": "string" },
+            "message": { "type": "string" }
+          }
+        }
+      }
+    },
+    "consultation_item": {
+      "type": "object",
+      "required": ["id", "source_id", "title", "summary"],
+      "properties": {
+        "id": { "type": "string" },
+        "source_id": { "type": "string" },
+        "title": { "type": "string" },
+        "summary": { "type": "string" },
+        "published_at": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "fact_index": {
+      "type": "object",
+      "required": ["version", "flat"],
+      "properties": {
+        "version": { "type": "string" },
+        "rules_version": { "type": ["string", "null"] },
+        "flat": { "type": "object" },
+        "symbols": { "type": "object" },
+        "indices": { "type": "object" },
+        "holdings": { "type": "object" }
+      }
+    },
     "instrument": {
       "type": "object",
       "required": ["ts_code", "name", "asset_type", "bars"],

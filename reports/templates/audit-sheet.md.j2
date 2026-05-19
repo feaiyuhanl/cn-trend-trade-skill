@@ -1,0 +1,39 @@
+# 事实审计表 · {{ meta.run_id }}
+
+> 📊 下列为 pack.fact_index 可核对数字；定性结论见 decision-dossier.md。
+
+## 一、已引用事实（facts_used）
+
+{% for s in symbols %}
+### {{ s.ts_code }}
+
+| fact_key | 值 |
+|----------|-----|
+{% for f in s.facts_rows %}| `{{ f.key }}` | {{ f.value }} |
+{% endfor %}
+{% endfor %}
+
+## 二、相关但未引用的事实
+
+{% if unused_rows %}
+| fact_key | 值 |
+|----------|-----|
+{% for u in unused_rows %}| `{{ u.key }}` | {{ u.value }} |
+{% endfor %}
+{% else %}
+（无 — 相关 fact 均已引用）
+{% endif %}
+
+## 三、无效引用（应修正 trace）
+
+{% if unknown_keys %}
+{% for k in unknown_keys %}- `{{ k }}` **不在 fact_index**
+{% endfor %}
+{% else %}
+（无）
+{% endif %}
+
+## 四、数据源快照
+
+{% for src in sources %}- `{{ src.id }}`: **{{ src.status }}** — {{ src.message or '' }}
+{% endfor %}

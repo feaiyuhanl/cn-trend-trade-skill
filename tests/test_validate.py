@@ -30,8 +30,13 @@ def test_trade_trace_fixture_valid():
 
 
 def test_trace_against_pack():
+    from core.enrich_trace import enrich_trace
+    from core.pack_facts import attach_fact_index
+
     pack = load_json(FIX_PACK)
+    attach_fact_index(pack)
     trace = load_json(FIX_TRACE)
+    enrich_trace(trace, pack)
     errs = validate_trace_against_pack(trace, pack)
     assert errs == [], errs
 

@@ -8,11 +8,13 @@
   "properties": {
     "meta": {
       "type": "object",
-      "required": ["run_id", "as_of", "skill_version", "playbook", "session_mode", "lenses_applied"],
+      "required": ["run_id", "as_of", "skill_version", "playbook", "session_mode", "lenses_applied", "rules_version"],
       "properties": {
         "run_id": { "type": "string" },
         "as_of": { "type": "string" },
         "skill_version": { "type": "string" },
+        "rules_version": { "type": "string" },
+        "rules_profile": { "type": "string" },
         "playbook": { "type": "string" },
         "session_mode": {
           "type": "string",
@@ -57,9 +59,40 @@
     "gaps": {
       "type": "array",
       "items": { "type": "string" }
+    },
+    "resolved": {
+      "type": "object",
+      "description": "Script-only block from enrich-trace; do not hand-write",
+      "properties": {
+        "enriched_at": { "type": "string" },
+        "decisions": { "type": "object" },
+        "steps": { "type": "array" },
+        "audit": { "type": "object" }
+      }
     }
   },
   "$defs": {
+    "observation": {
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        {
+          "type": "object",
+          "required": ["kind", "text"],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": ["fact", "qualitative", "mixed"]
+            },
+            "text": { "type": "string", "minLength": 1 },
+            "fact_keys": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "step": {
       "type": "object",
       "required": ["step", "lens", "evidence_ids", "observations", "inference", "confidence"],
@@ -70,8 +103,8 @@
         "evidence_ids": { "type": "array", "items": { "type": "string" } },
         "observations": {
           "type": "array",
-          "items": { "type": "string" },
-          "minItems": 1
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/observation" }
         },
         "inference": { "type": "string", "minLength": 1 },
         "confidence": { "type": "string", "enum": ["low", "medium", "high"] }
@@ -94,8 +127,26 @@
     },
     "symbol_decision": {
       "type": "object",
-      "required": ["phase", "strength", "entry", "position_plan", "exit_plan"],
+      "required": [
+        "evidence_ids",
+        "facts_used",
+        "phase",
+        "strength",
+        "entry",
+        "position_plan",
+        "exit_plan"
+      ],
       "properties": {
+        "evidence_ids": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "facts_used": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
         "phase": {
           "type": "string",
           "enum": ["startup", "acceleration", "exhaustion", "reversal", "unclear"]
@@ -120,15 +171,22 @@
             "rationale": { "type": "string" }
           }
         },
-        "position_plan": { "type": "object" },
+        "position_plan": {
+          "type": "object",
+          "properties": {
+            "computed": { "type": "object" },
+            "framework": { "type": "object" }
+          }
+        },
         "exit_plan": { "type": "object" },
         "holding_review": { "type": "object" }
       }
     },
     "discipline_item": {
       "type": "object",
-      "required": ["rule", "passed"],
+      "required": ["rule_id", "rule", "passed"],
       "properties": {
+        "rule_id": { "type": "string" },
         "rule": { "type": "string" },
         "passed": { "type": "boolean" },
         "note": { "type": "string" }

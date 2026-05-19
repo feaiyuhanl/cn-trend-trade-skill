@@ -3,7 +3,7 @@
 在 **Cursor / Claude Code** 中完成 **A 股趋势交易分析**（用户指定标的，不选股）。
 
 ```
-intake 确认 → market_pack（Tushare/ fixture）→ Lenses 推理 → trade_trace → 固定报告
+intake → market_pack + fact_index → Lenses → trade_trace → enrich → 机检 → render 报告
 ```
 
 > 仅供学习研究，**不构成投资建议**。[DISCLAIMER.md](DISCLAIMER.md)
@@ -30,7 +30,10 @@ pip install -r requirements.txt
 # 演示（无需 Token）
 python cli.py --assemble --symbols 600519.SH,300750.SZ \
   --session-mode mixed --positions-file examples/positions_holdings.json --copy-trace
+python cli.py --enrich-trace .trend-trade/tmp/trade_trace.json --pack .trend-trade/tmp/market_pack.json
 python cli.py --validate-trace .trend-trade/tmp/trade_trace.json --pack .trend-trade/tmp/market_pack.json
+python cli.py --render-report .trend-trade/tmp/trade_trace.json --pack .trend-trade/tmp/market_pack.json
+python cli.py --list-rules
 ```
 
 用 Cursor 打开本目录，输入 `/trend-trade`。
@@ -58,6 +61,7 @@ python cli.py --assemble --live --symbols 600519.SH
 
 ## 版本
 
+- **0.3.0** — fact_index、机检规则 `config/rules.yaml`、enrich/render-report
 - **0.2.0** — Tushare 实盘、hints、journal、完整 Skill 流程
 - **0.1.0** — M0 fixture 骨架
 

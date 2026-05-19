@@ -1,0 +1,117 @@
+# 可机检交易规则注册表（可持续迭代）
+# 修改后运行: python cli.py --validate-trace ... --pack ...
+# 文档: docs/rules-system.md
+
+version: "1.0.0"
+
+# 校验档位：development 允许 fixture 少 K 线；production 更严
+profiles:
+  development:
+    min_daily_bars_for_phase: 2
+    min_daily_bars_for_strength: 2
+    min_weekly_bars_for_strength: 1
+    numeric_tolerance_abs: 0.15
+  production:
+    min_daily_bars_for_phase: 20
+    min_daily_bars_for_strength: 10
+    min_weekly_bars_for_strength: 4
+    numeric_tolerance_abs: 0.05
+
+default_profile: development
+
+# 机器规则：id 稳定，便于 CHANGELOG / 测试 / Agent 引用
+machine_rules:
+  - id: FACT_OBSERVATION_NUMBERS
+    severity: error
+    description: steps.observations 中出现的数字须与 evidence_ids 对应 bar/hint 一致
+    check: observation_numbers_match_evidence
+
+  - id: DECISIONS_EVIDENCE_REQUIRED
+    severity: error
+    description: 每个 decisions 标的至少 1 个 evidence_ids，且存在于 pack
+    check: decisions_have_evidence
+
+  - id: DECISIONS_FACTS_USED
+    severity: error
+    description: decisions.facts_used 的 key 须存在于 pack.fact_index.flat
+    check: decisions_facts_used_valid
+
+  - id: HOLD_PNL_FROM_PACK
+    severity: error
+    description: holding_review.vs_cost_pct 须与 pack 重算一致（禁止手编浮盈）
+    check: holding_pnl_matches_pack
+
+  - id: MARKET_FILTER_INDICES_SUBSET
+    severity: error
+    description: market_filter.indices_considered 须为 pack 已拉取指数的子集
+    check: market_filter_indices_in_pack
+
+  - id: MF_NO_AGGRESSIVE_NEW_ENTRY
+    severity: error
+    description: allow_new_trend_trade=no 时，无持仓标的 entry 须 wait/none
+    check: market_filter_blocks_new_entry
+
+  - id: MF_REDUCED_NO_BREAKOUT_CHASE
+    severity: warn
+    description: allow_new_trend_trade=reduced 时，新开 breakout 须在 rationale 说明缩仓
+    check: reduced_requires_size_note
+
+  - id: DATA_GATE_PHASE
+    severity: error
+    description: 日线不足 min_daily_bars_for_phase 时 phase 必须为 unclear
+    check: insufficient_data_forces_unclear_phase
+
+  - id: DATA_GATE_STRENGTH
+    severity: warn
+    description: 周线不足时 monthly/strength 不得为 strong
+    check: insufficient_weekly_limits_strength
+
+  - id: PHASE_UNCLEAR_ENTRY
+    severity: error
+    description: phase=unclear 时 entry.action 须为 wait/none/not_applicable
+    check: unclear_phase_cautious_entry
+
+  - id: DISCIPLINE_RULE_IDS
+    severity: error
+    description: discipline_checklist 每项须有 rule_id，且与 machine_rules 或 registry 对应
+    check: discipline_has_rule_ids
+
+  - id: DISCIPLINE_MF_CONSISTENT
+    severity: error
+    description: 纪律项 MF_NO_AGGRESSIVE 的 passed 须与 market_filter 规则结果一致
+    check: discipline_matches_market_filter
+
+  - id: STEPS_MATCH_LENSES
+    severity: error
+    description: steps 数量与顺序须与 meta.lenses_applied 一一对应
+    check: steps_match_lenses_applied
+
+  - id: OBSERVATION_KIND_CONSISTENT
+    severity: error
+    description: kind=fact 的 observation 须有 fact_keys 且 key 存在于 fact_index
+    check: observation_kind_consistent
+
+  - id: FRAMEWORK_NO_RAW_NUMBERS
+    severity: warn
+    description: framework/rationale/exit_plan 中数字须可对应 facts_used（否则用定性描述）
+    check: framework_no_raw_numbers
+
+# Agent 填写的定性 checklist（可扩展；机检只验 rule_id 存在）
+discipline_registry:
+  - id: MF_NO_AGGRESSIVE
+    template: "大盘过滤为 no/reduced 时不激进新开仓"
+  - id: NO_SIGNAL_NO_TRADE
+    template: "无信号不交易（wait/none）"
+  - id: STOP_RECORDED
+    template: "持仓止损价已记录或与 exit_plan 一致"
+  - id: T1_LIMIT_AWARE
+    template: "已考虑 A 股 T+1 与涨跌停流动性"
+  - id: POSITION_LIMITS
+    template: "单笔/总仓位未超 user_context.portfolio 上限"
+
+observation_policy:
+  # 观测句若含数字但无法匹配 evidence，须带此前缀（否则 validate 失败）
+  unverified_marker: "[qualitative]"
+  # 从字符串提取数字时忽略的年份/日期形态
+  ignore_patterns:
+    - "^20\\d{6}$"

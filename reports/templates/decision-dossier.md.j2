@@ -1,0 +1,67 @@
+# 决策卷宗 · {{ meta.run_id }}
+
+> as_of: {{ meta.as_of }} | playbook: {{ meta.playbook }}  
+> 标记：📊=事实 👁=观察 💭=推断
+
+## 一、按 Lens 的推理链
+
+{% for step in steps %}
+### 步骤 {{ step.step }} · {{ step.lens }}
+
+**观察**
+
+{% for o in step.observations %}- {{ o.icon }} ({{ o.kind }}) {{ o.text }}
+{% endfor %}
+
+**证据 K 线**
+
+| bar_id | 日期 | 收 | 涨跌% |
+|--------|------|-----|-------|
+{% for b in step.bars %}{% if b.missing %}| `{{ b.id }}` | — | — | **缺失** |
+{% else %}| `{{ b.id }}` | {{ b.trade_date }} | {{ b.close }} | {{ b.pct_chg }} |
+{% endif %}{% endfor %}{% if not step.bars %}| （无） | | | |
+{% endif %}
+
+**推断**
+
+- {{ step.inference }}
+
+置信度：{{ step.confidence }}
+
+{% endfor %}
+
+## 二、个股结论与事实展开
+
+{% for s in symbols %}
+### {{ s.ts_code }} {{ s.name }}
+
+| 维度 | 结论 |
+|------|------|
+| 阶段 | {{ s.phase }} |
+| 强度 | {{ s.strength_line }} |
+| 入场 | {{ s.entry_type }} / {{ s.entry_action }} |
+
+**rationale**：{{ s.rationale }}
+
+**facts_used 展开**
+
+| fact_key | 值 |
+|----------|-----|
+{% for f in s.facts_rows %}| `{{ f.key }}` | {{ f.value }} |
+{% endfor %}
+
+**evidence K 线**
+
+| bar_id | 日期 | 收 |
+|--------|------|-----|
+{% for b in s.bars %}| `{{ b.id }}` | {{ b.trade_date }} | {{ b.close }} |
+{% endfor %}
+
+---
+{% endfor %}
+
+## 三、大盘过滤
+
+**regime**：{{ market_filter.regime_inference }}  
+**allow_new_trend_trade**：{{ market_filter.allow_new_trend_trade }}  
+**summary**：{{ market_filter.reasoning_summary }}

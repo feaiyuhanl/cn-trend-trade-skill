@@ -6,8 +6,7 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 
-_ROOT = Path(__file__).resolve().parent.parent
-SCHEMA_DIR = _ROOT / "schemas"
+from core.paths import SCHEMA_DIR
 
 
 def _load_schema(name: str) -> dict:
@@ -36,6 +35,12 @@ def validate_trade_trace(data: dict[str, Any]) -> list[str]:
 
 def _trace_semantic_checks(data: dict[str, Any]) -> list[str]:
     msgs: list[str] = []
+    lenses = (data.get("meta") or {}).get("lenses_applied") or []
+    steps = data.get("steps") or []
+    if lenses and len(steps) != len(lenses):
+        msgs.append(
+            f"steps: count {len(steps)} must equal lenses_applied count {len(lenses)}"
+        )
     decisions = data.get("decisions", {})
     if not decisions:
         msgs.append("decisions: at least one symbol decision required")
@@ -64,6 +69,12 @@ def _collect_pack_bar_ids(pack: dict[str, Any]) -> set[str]:
 
 
 def validate_trace_against_pack(trace: dict[str, Any], pack: dict[str, Any]) -> list[str]:
+    if "fact_index" not in pack:
+        from core.pack_facts import attach_fact_index
+        from core.rules_engine import load_rules_config
+
+        attach_fact_index(pack, rules_version=load_rules_config().get("version"))
+
     msgs: list[str] = []
     pack_ids = _collect_pack_bar_ids(pack)
     pack_symbols = {s["ts_code"] for s in pack.get("symbols", [])}
@@ -76,6 +87,13 @@ def validate_trace_against_pack(trace: dict[str, Any], pack: dict[str, Any]) -> 
             msgs.append(f"decisions.{ts_code}: not in pack symbols")
     if trace.get("meta", {}).get("run_id") != pack.get("meta", {}).get("run_id"):
         msgs.append("meta.run_id mismatch between trace and pack")
+
+    from core.rules_engine import run_machine_rules
+
+    errors, warnings = run_machine_rules(pack, trace)
+    msgs.extend(errors)
+    for w in warnings:
+        msgs.append(f"WARN {w}")
     return msgs
 
 

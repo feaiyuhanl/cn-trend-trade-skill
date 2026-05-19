@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Any
 
 from core import SKILL_VERSION
+from core.pack_facts import attach_fact_index
+from core.rules_engine import load_rules_config
 
 _ROOT = Path(__file__).resolve().parent.parent
 FIXTURE_PACK = _ROOT / "fixtures" / "market_pack.sample.json"
@@ -81,9 +83,9 @@ def assemble(
     else:
         if not symbols:
             raise ValueError("--live requires --symbols (comma-separated ts_code)")
-        from core.fetch_live import build_live_pack
+        from adapters.tushare_market import apply_live
 
-        pack = build_live_pack(
+        pack = apply_live(
             symbols=symbols,
             indices_profile=indices_profile,
             run_id=run_id,
@@ -100,6 +102,13 @@ def assemble(
         pack["meta"]["run_id"] = run_id
     pack["meta"]["skill_version"] = SKILL_VERSION
     pack["meta"]["as_of"] = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    mode = pack["meta"].get("mode", "fixture")
+    pack["meta"]["rules_profile"] = "production" if mode == "live" else "development"
+    from adapters.runner import apply_adapters
+
+    pack = apply_adapters(pack)
+    rules = load_rules_config()
+    attach_fact_index(pack, rules_version=rules.get("version"))
 
     with OUT_PACK.open("w", encoding="utf-8") as f:
         json.dump(pack, f, ensure_ascii=False, indent=2)
