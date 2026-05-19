@@ -1,0 +1,17 @@
+version: "0.1.0"
+sources:
+  - id: tushare
+    name: Tushare Pro
+    optional: false
+    env: [TUSHARE_TOKEN]
+    apis:
+      - pro_bar
+      - index_daily
+      - daily
+    note: M1 实盘 fetch；M0 使用 fixture
+
+  - id: breadth
+    name: 涨跌家数/涨跌停（tushare 或衍生）
+    optional: true
+    env: [TUSHARE_TOKEN]
+    note: M2；缺失时 Agent 在 gaps 说明

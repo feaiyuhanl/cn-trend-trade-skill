@@ -1,0 +1,11 @@
+{
+  "session_mode": "new_entry",
+  "portfolio": {
+    "total_equity": 500000,
+    "risk_per_trade_pct": 1.0,
+    "max_single_position_pct": 20,
+    "max_total_exposure_pct": 60
+  },
+  "positions": [],
+  "user_notes": "评估 600519、300750 是否适合趋势开仓"
+}

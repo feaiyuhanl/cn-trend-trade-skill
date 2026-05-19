@@ -1,0 +1,66 @@
+# 指数注册表：供 fetch 拉取、Agent 按组推理大盘环境（非 hardcode 过滤规则）
+version: "0.1.0"
+description: >
+  全面收集主要 A 股指数，按 category / index_group 分组。
+  Agent 阅读 docs/indices-guide.md，综合多组指数推理 market_regime，勿依赖单一指数硬阈值。
+
+profiles:
+  comprehensive:
+    description: 默认：宽基+规模+风格+部分行业，供 AI 交叉验证
+    include_groups: [broad_market, size_segment, style, sector_sample]
+  minimal:
+    description: 仅宽基，数据受限时降级
+    include_groups: [broad_market]
+
+groups:
+  broad_market:
+    label: 宽基
+    reasoning_hint: 整体市场风险偏好与趋势方向
+    indices:
+      - { ts_code: "000001.SH", name: 上证指数 }
+      - { ts_code: "399001.SZ", name: 深证成指 }
+      - { ts_code: "399006.SZ", name: 创业板指 }
+      - { ts_code: "000688.SH", name: 科创50 }
+      - { ts_code: "899050.BJ", name: 北证50, optional: true }
+
+  size_segment:
+    label: 规模分层
+    reasoning_hint: 大盘 vs 中小盘相对强弱，趋势交易应偏向哪类 beta
+    indices:
+      - { ts_code: "000300.SH", name: 沪深300 }
+      - { ts_code: "000905.SH", name: 中证500 }
+      - { ts_code: "000852.SH", name: 中证1000 }
+      - { ts_code: "932000.CSI", name: 中证2000, optional: true }
+
+  style:
+    label: 风格
+    reasoning_hint: 成长/价值/红利风格是否支持趋势延续
+    indices:
+      - { ts_code: "399370.SZ", name: 国证成长, optional: true }
+      - { ts_code: "399371.SZ", name: 国证价值, optional: true }
+      - { ts_code: "000015.SH", name: 红利指数, optional: true }
+
+  sector_sample:
+    label: 行业样本（非 exhaustive）
+    reasoning_hint: 是否结构性行情、行业轮动是否利于个股趋势
+    indices:
+      - { ts_code: "000016.SH", name: 上证50 }
+      - { ts_code: "399975.SZ", name: 证券公司, optional: true }
+      - { ts_code: "399967.SZ", name: 中证军工, optional: true }
+      - { ts_code: "399986.SZ", name: 中证银行, optional: true }
+
+  global_linkage:
+    label: 跨境联动（M2+ 可选）
+    reasoning_hint: 港股/美股风险偏好对 A 股趋势交易的边际影响
+    optional_group: true
+    indices:
+      - { ts_code: "HSI", name: 恒生指数, source: external, optional: true }
+      - { ts_code: "SPX", name: 标普500, source: external, optional: true }
+
+fetch:
+  timeframes: [daily, weekly, monthly]
+  lookback_bars:
+    daily: 120
+    weekly: 52
+    monthly: 24
+  on_optional_missing: skip  # 某 optional 指数无权限时跳过，写入 gaps

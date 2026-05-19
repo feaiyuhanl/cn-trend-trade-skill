@@ -1,0 +1,28 @@
+{
+  "session_mode": "holdings_review",
+  "portfolio": {
+    "total_equity": 800000,
+    "risk_per_trade_pct": 0.8,
+    "max_single_position_pct": 25,
+    "max_total_exposure_pct": 70
+  },
+  "positions": [
+    {
+      "ts_code": "600519.SH",
+      "cost": 1650.0,
+      "shares": 100,
+      "entry_date": "20260420",
+      "stop_price": 1580.0,
+      "notes": "趋势仓，准备看是否加仓"
+    },
+    {
+      "ts_code": "002594.SZ",
+      "cost": 245.0,
+      "shares": 500,
+      "entry_date": "20260505",
+      "stop_price": 228.0,
+      "notes": "突破入场，需评估是否移动止损"
+    }
+  ],
+  "user_notes": "只做持仓管理，不新开其它标的"
+}

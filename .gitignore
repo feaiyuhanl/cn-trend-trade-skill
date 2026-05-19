@@ -1,0 +1,10 @@
+.trend-trade/tmp/*
+!.trend-trade/tmp/.gitkeep
+.trend-trade/journal/*
+!.trend-trade/journal/.gitkeep
+__pycache__/
+.pytest_cache/
+*.pyc
+.venv/
+.env
+*.db

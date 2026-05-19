@@ -1,0 +1,11 @@
+{
+  "ts_code": "600519.SH",
+  "action": "buy",
+  "shares": 100,
+  "price": 1650.0,
+  "trade_date": "20260420",
+  "planned_phase": "startup",
+  "planned_entry_type": "breakout",
+  "planned_stop": 1580.0,
+  "notes": "突破后入场，示例日记"
+}

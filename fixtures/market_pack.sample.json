@@ -1,0 +1,280 @@
+{
+  "meta": {
+    "run_id": "20260519-trend-demo",
+    "as_of": "2026-05-19T15:00:00+08:00",
+    "fetch_status": {
+      "tushare": "not_configured",
+      "breadth": "skip"
+    },
+    "skill_version": "0.2.0",
+    "mode": "fixture",
+    "symbols_requested": ["600519.SH", "300750.SZ"],
+    "indices_profile": "comprehensive"
+  },
+  "symbols": [
+    {
+      "ts_code": "600519.SH",
+      "name": "贵州茅台",
+      "asset_type": "stock",
+      "bars": {
+        "daily": [
+          {
+            "id": "bar_600519_d_20260519",
+            "trade_date": "20260519",
+            "open": 1678.0,
+            "high": 1695.0,
+            "low": 1670.0,
+            "close": 1688.5,
+            "pct_chg": 0.62,
+            "vol": 2850000,
+            "amount": 4800000000,
+            "source_id": "fixture"
+          },
+          {
+            "id": "bar_600519_d_20260516",
+            "trade_date": "20260516",
+            "open": 1665.0,
+            "high": 1682.0,
+            "low": 1660.0,
+            "close": 1678.0,
+            "pct_chg": 0.45,
+            "vol": 3100000,
+            "amount": null,
+            "source_id": "fixture"
+          }
+        ],
+        "weekly": [
+          {
+            "id": "bar_600519_w_20260516",
+            "trade_date": "20260516",
+            "open": 1640.0,
+            "high": 1695.0,
+            "low": 1635.0,
+            "close": 1688.5,
+            "pct_chg": 2.1,
+            "vol": 12000000,
+            "amount": null,
+            "source_id": "fixture"
+          }
+        ],
+        "monthly": [
+          {
+            "id": "bar_600519_m_20260501",
+            "trade_date": "20260501",
+            "open": 1580.0,
+            "high": 1695.0,
+            "low": 1570.0,
+            "close": 1688.5,
+            "pct_chg": 4.5,
+            "vol": 48000000,
+            "amount": null,
+            "source_id": "fixture"
+          }
+        ]
+      },
+      "derived_hints": {
+        "ma20_slope_daily": 0.008,
+        "ma60_slope_daily": 0.004,
+        "price_above_ma20": true,
+        "price_above_ma60": true,
+        "vol_ratio_5_20": 1.12,
+        "atr14_pct": 0.018,
+        "distance_from_52w_high_pct": -3.2,
+        "resistance_levels": [1700.0, 1725.0],
+        "structure": "higher_highs_higher_lows"
+      }
+    },
+    {
+      "ts_code": "300750.SZ",
+      "name": "宁德时代",
+      "asset_type": "stock",
+      "bars": {
+        "daily": [
+          {
+            "id": "bar_300750_d_20260519",
+            "trade_date": "20260519",
+            "open": 198.5,
+            "high": 201.0,
+            "low": 196.0,
+            "close": 199.8,
+            "pct_chg": 0.35,
+            "vol": 18500000,
+            "amount": null,
+            "source_id": "fixture"
+          }
+        ],
+        "weekly": [
+          {
+            "id": "bar_300750_w_20260516",
+            "trade_date": "20260516",
+            "open": 192.0,
+            "high": 201.0,
+            "low": 190.0,
+            "close": 199.8,
+            "pct_chg": 1.8,
+            "vol": 72000000,
+            "amount": null,
+            "source_id": "fixture"
+          }
+        ],
+        "monthly": []
+      },
+      "derived_hints": {
+        "ma20_slope_daily": 0.002,
+        "vol_ratio_5_20": 0.88,
+        "atr14_pct": 0.032,
+        "structure": "range_bound"
+      }
+    }
+  ],
+  "indices": [
+    {
+      "ts_code": "000300.SH",
+      "name": "沪深300",
+      "asset_type": "index",
+      "category": "size_segment",
+      "index_group": "size_segment",
+      "bars": {
+        "daily": [
+          {
+            "id": "bar_000300_d_20260519",
+            "trade_date": "20260519",
+            "open": 3840.0,
+            "high": 3865.0,
+            "low": 3835.0,
+            "close": 3856.2,
+            "pct_chg": -0.35,
+            "vol": null,
+            "amount": null,
+            "source_id": "fixture"
+          }
+        ],
+        "weekly": [
+          {
+            "id": "bar_000300_w_20260516",
+            "trade_date": "20260516",
+            "open": 3780.0,
+            "high": 3880.0,
+            "low": 3770.0,
+            "close": 3856.2,
+            "pct_chg": 0.8,
+            "vol": null,
+            "amount": null,
+            "source_id": "fixture"
+          }
+        ],
+        "monthly": []
+      },
+      "derived_hints": {
+        "ma20_slope_daily": -0.001,
+        "ma60_slope_weekly": 0.003,
+        "structure": "mixed"
+      }
+    },
+    {
+      "ts_code": "000905.SH",
+      "name": "中证500",
+      "asset_type": "index",
+      "category": "size_segment",
+      "index_group": "size_segment",
+      "bars": {
+        "daily": [
+          {
+            "id": "bar_000905_d_20260519",
+            "trade_date": "20260519",
+            "open": 5420.0,
+            "high": 5480.0,
+            "low": 5410.0,
+            "close": 5468.5,
+            "pct_chg": 0.55,
+            "vol": null,
+            "amount": null,
+            "source_id": "fixture"
+          }
+        ],
+        "weekly": [],
+        "monthly": []
+      },
+      "derived_hints": {
+        "ma20_slope_daily": 0.006,
+        "structure": "higher_highs_higher_lows"
+      }
+    },
+    {
+      "ts_code": "000852.SH",
+      "name": "中证1000",
+      "asset_type": "index",
+      "category": "size_segment",
+      "index_group": "size_segment",
+      "bars": {
+        "daily": [
+          {
+            "id": "bar_000852_d_20260519",
+            "trade_date": "20260519",
+            "open": 5120.0,
+            "high": 5180.0,
+            "low": 5105.0,
+            "close": 5172.0,
+            "pct_chg": 0.72,
+            "vol": null,
+            "amount": null,
+            "source_id": "fixture"
+          }
+        ],
+        "weekly": [],
+        "monthly": []
+      },
+      "derived_hints": {
+        "ma20_slope_daily": 0.009,
+        "structure": "higher_highs_higher_lows"
+      }
+    },
+    {
+      "ts_code": "399006.SZ",
+      "name": "创业板指",
+      "asset_type": "index",
+      "category": "broad_market",
+      "index_group": "broad_market",
+      "bars": {
+        "daily": [
+          {
+            "id": "bar_399006_d_20260519",
+            "trade_date": "20260519",
+            "open": 1985.0,
+            "high": 2002.0,
+            "low": 1978.0,
+            "close": 1996.5,
+            "pct_chg": 0.28,
+            "vol": null,
+            "amount": null,
+            "source_id": "fixture"
+          }
+        ],
+        "weekly": [],
+        "monthly": []
+      },
+      "derived_hints": { "ma20_slope_daily": 0.004 }
+    }
+  ],
+  "user_context": {
+    "session_mode": "mixed",
+    "portfolio": {
+      "total_equity": 500000,
+      "risk_per_trade_pct": 1.0,
+      "max_single_position_pct": 20,
+      "max_total_exposure_pct": 60
+    },
+    "positions": [
+      {
+        "ts_code": "600519.SH",
+        "cost": 1650.0,
+        "shares": 100,
+        "entry_date": "20260420",
+        "stop_price": 1580.0,
+        "notes": "fixture 演示持仓"
+      }
+    ],
+    "user_notes": ""
+  },
+  "market_breadth": null
+}

@@ -1,0 +1,27 @@
+# 默认参数模板（非策略硬编码；Agent 在 lenses 中引用并说明理由）
+
+skill:
+  tmp_dir: .trend-trade/tmp
+  indices_profile: comprehensive
+
+portfolio_defaults:
+  risk_per_trade_pct: 1.0
+  max_single_position_pct: 20
+  max_total_exposure_pct: 60
+
+session_modes:
+  new_entry:
+    description: 评估是否适合新开趋势仓
+    required_user_fields: [symbols]
+    optional_user_fields: [portfolio]
+  holdings_review:
+    description: 已有持仓的加减仓/止损/止盈
+    required_user_fields: [symbols, positions]
+    optional_user_fields: [portfolio]
+  mixed:
+    description: 同时有新标的与持仓
+
+intake:
+  # Agent 在 assemble 前必须完成的问询（见 playbooks/intake.md）
+  ask_before_assemble: true
+  confirm_session_mode: true

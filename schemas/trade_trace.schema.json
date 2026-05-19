@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cn-trend-trade-skill/schemas/trade_trace.schema.json",
+  "title": "TradeTrace",
+  "type": "object",
+  "required": ["meta", "sources_snapshot", "steps", "decisions", "discipline_checklist", "gaps"],
+  "additionalProperties": false,
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": ["run_id", "as_of", "skill_version", "playbook", "session_mode", "lenses_applied"],
+      "properties": {
+        "run_id": { "type": "string" },
+        "as_of": { "type": "string" },
+        "skill_version": { "type": "string" },
+        "playbook": { "type": "string" },
+        "session_mode": {
+          "type": "string",
+          "enum": ["new_entry", "holdings_review", "mixed"]
+        },
+        "lenses_applied": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        }
+      }
+    },
+    "sources_snapshot": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "status"],
+        "properties": {
+          "id": { "type": "string" },
+          "status": { "type": "string", "enum": ["ok", "fail", "skip", "not_configured"] },
+          "items": { "type": "integer", "minimum": 0 },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/step" }
+    },
+    "market_filter": { "$ref": "#/$defs/market_filter" },
+    "decisions": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/symbol_decision" }
+    },
+    "discipline_checklist": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/discipline_item" }
+    },
+    "review": { "$ref": "#/$defs/review_block" },
+    "gaps": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "step": {
+      "type": "object",
+      "required": ["step", "lens", "evidence_ids", "observations", "inference", "confidence"],
+      "properties": {
+        "step": { "type": "integer", "minimum": 1 },
+        "lens": { "type": "string" },
+        "prompts_used": { "type": "array", "items": { "type": "string" } },
+        "evidence_ids": { "type": "array", "items": { "type": "string" } },
+        "observations": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "inference": { "type": "string", "minLength": 1 },
+        "confidence": { "type": "string", "enum": ["low", "medium", "high"] }
+      }
+    },
+    "market_filter": {
+      "type": "object",
+      "required": ["regime_inference", "allow_new_trend_trade", "confidence"],
+      "properties": {
+        "indices_considered": { "type": "array", "items": { "type": "string" } },
+        "index_groups_used": { "type": "array", "items": { "type": "string" } },
+        "regime_inference": { "type": "string" },
+        "allow_new_trend_trade": {
+          "type": "string",
+          "enum": ["yes", "reduced", "no", "not_applicable"]
+        },
+        "reasoning_summary": { "type": "string" },
+        "confidence": { "type": "string", "enum": ["low", "medium", "high"] }
+      }
+    },
+    "symbol_decision": {
+      "type": "object",
+      "required": ["phase", "strength", "entry", "position_plan", "exit_plan"],
+      "properties": {
+        "phase": {
+          "type": "string",
+          "enum": ["startup", "acceleration", "exhaustion", "reversal", "unclear"]
+        },
+        "strength": {
+          "type": "object",
+          "properties": {
+            "daily": { "type": "string" },
+            "weekly": { "type": "string" },
+            "monthly": { "type": "string" },
+            "alignment": { "type": "string" }
+          }
+        },
+        "entry": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["breakout", "pullback", "wait", "none", "not_applicable"]
+            },
+            "action": { "type": "string" },
+            "rationale": { "type": "string" }
+          }
+        },
+        "position_plan": { "type": "object" },
+        "exit_plan": { "type": "object" },
+        "holding_review": { "type": "object" }
+      }
+    },
+    "discipline_item": {
+      "type": "object",
+      "required": ["rule", "passed"],
+      "properties": {
+        "rule": { "type": "string" },
+        "passed": { "type": "boolean" },
+        "note": { "type": "string" }
+      }
+    },
+    "review_block": {
+      "type": "object",
+      "properties": {
+        "planned_vs_actual": { "type": "array", "items": { "type": "object" } },
+        "phase_accuracy": { "type": "string" },
+        "discipline_violations": { "type": "array", "items": { "type": "string" } },
+        "lessons": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

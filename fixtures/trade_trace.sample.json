@@ -1,0 +1,123 @@
+{
+  "meta": {
+    "run_id": "20260519-trend-demo",
+    "as_of": "2026-05-19T15:30:00+08:00",
+    "skill_version": "0.2.0",
+    "playbook": "full-analysis",
+    "session_mode": "mixed",
+    "lenses_applied": [
+      "market-filter",
+      "trend-strength",
+      "trend-phase",
+      "entry-signals",
+      "position-management",
+      "exit-signals",
+      "discipline"
+    ]
+  },
+  "sources_snapshot": [
+    { "id": "tushare", "status": "not_configured", "items": 0, "message": "TUSHARE_TOKEN unset; fixture mode" }
+  ],
+  "steps": [
+    {
+      "step": 1,
+      "lens": "market-filter",
+      "prompts_used": [
+        "宽基 vs 规模分层是否一致？",
+        "中小盘是否强于大盘？",
+        "当前环境是否适合新开趋势仓？"
+      ],
+      "evidence_ids": [
+        "bar_000300_d_20260519",
+        "bar_000905_d_20260519",
+        "bar_000852_d_20260519",
+        "bar_399006_d_20260519"
+      ],
+      "observations": [
+        "沪深300 日线收跌 -0.35%，周线结构 mixed",
+        "中证500/1000 日线收涨且 ma20 斜率为正",
+        "宽基内部：大盘偏弱、中小盘偏强"
+      ],
+      "inference": "市场呈结构性分化，整体非全面趋势友好；新开仓宜 reduced 仓位并优选相对强势规模层",
+      "confidence": "medium"
+    },
+    {
+      "step": 2,
+      "lens": "trend-phase",
+      "prompts_used": ["600519 处于哪一趋势阶段？"],
+      "evidence_ids": ["bar_600519_d_20260519", "bar_600519_w_20260516"],
+      "observations": [
+        "日线 HH/HL，价在 MA20/60 上方",
+        "vol_ratio_5_20=1.12，未明显背离",
+        "距 52 周高点 -3.2%"
+      ],
+      "inference": "贵州茅台：加速期（acceleration），但接近前高阻力区",
+      "confidence": "medium"
+    }
+  ],
+  "market_filter": {
+    "indices_considered": ["000300.SH", "000905.SH", "000852.SH", "399006.SZ"],
+    "index_groups_used": ["broad_market", "size_segment"],
+    "regime_inference": "structural_rotation_small_cap_outperform",
+    "allow_new_trend_trade": "reduced",
+    "reasoning_summary": "未 hardcode 单一指数阈值；综合宽基与规模组后判断为分化市",
+    "confidence": "medium"
+  },
+  "decisions": {
+    "600519.SH": {
+      "phase": "acceleration",
+      "strength": {
+        "daily": "strong",
+        "weekly": "strong",
+        "monthly": "neutral",
+        "alignment": "mostly_aligned"
+      },
+      "entry": {
+        "type": "pullback",
+        "action": "hold_or_add_on_confirmed_pullback",
+        "rationale": "已有持仓浮盈；突破 1700 前更适合等回踩 MA20 缩量企稳再加"
+      },
+      "position_plan": {
+        "initial_pct": null,
+        "add_triggers": ["回踩 MA20 缩量企稳", "大盘 allow 非 no"],
+        "max_total_pct": 0.15,
+        "stop_logic": "structure_low_or_2ATR_below_entry"
+      },
+      "exit_plan": {
+        "trail_stop": "MA20 日线或 1580 结构止损取高",
+        "partial_take": "逼近 1725 阻力分批",
+        "time_stop": "10 交易日横盘无新高则减仓"
+      },
+      "holding_review": {
+        "vs_cost_pct": 2.33,
+        "action": "hold",
+        "urgency": "low"
+      }
+    },
+    "300750.SZ": {
+      "phase": "unclear",
+      "strength": {
+        "daily": "weak",
+        "weekly": "neutral",
+        "monthly": "unknown",
+        "alignment": "conflicted"
+      },
+      "entry": {
+        "type": "wait",
+        "action": "wait",
+        "rationale": "range_bound + 缩量，缺乏趋势启动证据"
+      },
+      "position_plan": {},
+      "exit_plan": {}
+    }
+  },
+  "discipline_checklist": [
+    { "rule": "大盘过滤为 reduced 时不激进加仓", "passed": true, "note": "" },
+    { "rule": "无信号不交易（300750 维持 wait）", "passed": true, "note": "" },
+    { "rule": "止损价已记录", "passed": true, "note": "600519 stop 1580" }
+  ],
+  "gaps": [
+    "market_breadth 未采集，涨跌家数维度缺失",
+    "tushare 未配置，月线部分标的 bars 不完整"
+  ]
+}
