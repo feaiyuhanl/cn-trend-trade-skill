@@ -1,6 +1,6 @@
 # 可机检交易规则注册表（可持续迭代）
 # 修改后运行: python cli.py --validate-trace ... --pack ...
-# 文档: docs/rules-system.md
+# 文档: skill/reference/rules-system.md
 
 version: "1.0.0"
 

@@ -33,4 +33,4 @@
 
 ## 示例触发句
 
-见 [examples/README.md](../examples/README.md)。
+见 [sample/README.md](../../sample/README.md)。

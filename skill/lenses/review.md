@@ -17,4 +17,4 @@
 - `discipline_violations[]`
 - `lessons[]`
 
-复盘：写入 `trace.review` 后由 `finalize` 渲染 `review-report.md`（`reports/templates/review-report.md.j2`）。
+复盘：写入 `trace.review` 后由 `finalize` 渲染 `review-report.md`（模板 `engine/report/templates/review-report.md.j2`）。

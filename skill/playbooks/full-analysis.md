@@ -4,7 +4,7 @@
 
 1. 完成 [intake.md](intake.md)
 2. `python cli.py --assemble --symbols ... [--positions-file ...] [--session-mode ...]`
-3. 阅读 `docs/evidence-policy.md`
+3. 阅读 [reference/evidence-policy.md](../reference/evidence-policy.md)
 
 ## 步骤
 

@@ -6,7 +6,7 @@
 config/indices.yaml + 用户 symbols
   → cli.py --assemble → market_pack.json
     → lenses + playbooks → trade_trace.json
-      → templates/trade-report.md
+      → finalize → report.md / decision-dossier.md / audit-sheet.md
 ```
 
 ## 规则

@@ -10,4 +10,4 @@
 | `review` | 复盘（可选） |
 | `gaps` | 数据缺口 |
 
-示例：[fixtures/trade_trace.sample.json](../fixtures/trade_trace.sample.json)。
+示例：[sample/trade_trace.sample.json](../../sample/trade_trace.sample.json)。

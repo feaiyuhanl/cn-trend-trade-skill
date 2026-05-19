@@ -6,7 +6,7 @@
 
 ## 必读
 
-- [docs/indices-guide.md](../docs/indices-guide.md)
+- [reference/indices-guide.md](../reference/indices-guide.md)
 - Pack 中 `indices[]` 的 `derived_hints` 与 D/W/M bars
 
 ## 推理步骤

@@ -2,7 +2,7 @@
 
 ## 改分析逻辑
 
-优先改 `skill/lenses/*.md` 与 `docs/phase-definitions.md`（`lenses/` 为迁移占位）。
+优先改 `skill/lenses/*.md` 与 `skill/reference/phase-definitions.md`。
 
 ## 改数据
 
@@ -13,7 +13,7 @@
 
 ## 改报告
 
-- Jinja 模板：`reports/templates/*.j2`
+- Jinja 模板：`engine/report/templates/*.j2`
 - 上下文构建：`core/report_context.py`
 
 ## 本地检查
@@ -21,5 +21,5 @@
 ```bash
 pip install -r requirements.txt
 python -m pytest tests/ -q
-python cli.py --validate-pack fixtures/market_pack.sample.json
+python cli.py --validate-pack sample/market_pack.sample.json
 ```

@@ -11,7 +11,7 @@ from core.pack_facts import attach_fact_index
 from core.rules_engine import load_rules_config
 
 _ROOT = Path(__file__).resolve().parent.parent
-FIXTURE_PACK = _ROOT / "fixtures" / "market_pack.sample.json"
+FIXTURE_PACK = _ROOT / "sample" / "market_pack.sample.json"
 TMP_DIR = _ROOT / ".trend-trade" / "tmp"
 OUT_PACK = TMP_DIR / "market_pack.json"
 OUT_TRACE = TMP_DIR / "trade_trace.json"
@@ -116,7 +116,7 @@ def assemble(
 
 
 def copy_fixture_trace() -> Path:
-    src = _ROOT / "fixtures" / "trade_trace.sample.json"
+    src = _ROOT / "sample" / "trade_trace.sample.json"
     TMP_DIR.mkdir(parents=True, exist_ok=True)
     shutil.copy(src, OUT_TRACE)
     return OUT_TRACE

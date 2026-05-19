@@ -2,7 +2,7 @@
 version: "0.1.0"
 description: >
   全面收集主要 A 股指数，按 category / index_group 分组。
-  Agent 阅读 docs/indices-guide.md，综合多组指数推理 market_regime，勿依赖单一指数硬阈值。
+  Agent 阅读 skill/reference/indices-guide.md，综合多组指数推理 market_regime，勿依赖单一指数硬阈值。
 
 profiles:
   comprehensive:

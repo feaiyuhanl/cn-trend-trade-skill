@@ -6,7 +6,7 @@
 
 ## 必读
 
-- [docs/phase-definitions.md](../docs/phase-definitions.md)
+- [reference/phase-definitions.md](../reference/phase-definitions.md)
 
 ## 方法
 

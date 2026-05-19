@@ -1,9 +1,10 @@
 # /trend-trade
 
-执行 [trend-trade Skill](../skills/trend-trade/SKILL.md) 完整流程：
+执行仓库根目录 **[SKILL.md](../../SKILL.md)**：
 
-1. **intake** — 确认 `session_mode`、symbols、持仓（见 playbooks/intake.md）
-2. `python cli.py --assemble`（实盘加 `--live` + `TUSHARE_TOKEN`）
-3. 按 playbook 写 `trade_trace.json`（`facts_used` + `[qualitative]`）
-4. `python cli.py --enrich-trace` → `--validate-trace` → `--render-report`
-5. 见 [docs/rules-system.md](../docs/rules-system.md)
+1. **intake** — [skill/playbooks/intake.md](../../skill/playbooks/intake.md)
+2. `python cli.py --assemble ...`
+3. 按 [skill/playbooks/full-analysis.md](../../skill/playbooks/full-analysis.md) 写 `trade_trace.json`
+4. `python cli.py --finalize .trend-trade/tmp/trade_trace.json --pack .trend-trade/tmp/market_pack.json`
+
+地图：[skill/MAP.md](../../skill/MAP.md)

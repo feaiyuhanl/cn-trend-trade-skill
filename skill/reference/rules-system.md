@@ -72,7 +72,7 @@ intake → assemble（含 fact_index）
 
 ## 迭代 changelog 建议
 
-在仓库维护 `docs/rules-changelog.md`（可选），每条记录：
+在仓库维护 `skill/reference/rules-changelog.md`（可选），每条记录：
 
 - rules.yaml `version`  bump
 - 新增/修改的 rule id

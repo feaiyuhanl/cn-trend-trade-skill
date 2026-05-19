@@ -10,8 +10,8 @@ from core.pipeline import finalize_trace
 from core.validate import load_json
 
 ROOT = Path(__file__).resolve().parent.parent
-FIX_PACK = ROOT / "fixtures" / "market_pack.sample.json"
-FIX_TRACE = ROOT / "fixtures" / "trade_trace.sample.json"
+FIX_PACK = ROOT / "sample" / "market_pack.sample.json"
+FIX_TRACE = ROOT / "sample" / "trade_trace.sample.json"
 
 
 def test_finalize_writes_reports(tmp_path: Path) -> None:

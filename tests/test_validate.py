@@ -13,8 +13,8 @@ from core.validate import (
 )
 
 ROOT = Path(__file__).resolve().parent.parent
-FIX_PACK = ROOT / "fixtures" / "market_pack.sample.json"
-FIX_TRACE = ROOT / "fixtures" / "trade_trace.sample.json"
+FIX_PACK = ROOT / "sample" / "market_pack.sample.json"
+FIX_TRACE = ROOT / "sample" / "trade_trace.sample.json"
 
 
 def test_market_pack_fixture_valid():
@@ -49,7 +49,7 @@ def test_assemble_writes_pack(tmp_path, monkeypatch):
     path = asm.assemble(
         symbols=["600519.SH"],
         session_mode="new_entry",
-        positions_file=ROOT / "examples" / "positions_new_entry.json",
+        positions_file=ROOT / "sample" / "positions_new_entry.json",
     )
     data = json.loads(path.read_text(encoding="utf-8"))
     assert len(data["symbols"]) == 1
