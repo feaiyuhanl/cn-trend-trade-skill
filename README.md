@@ -23,7 +23,7 @@ intake 确认 → market_pack（Tushare/ fixture）→ Lenses 推理 → trade_t
 ## 快速开始
 
 ```bash
-git clone <repo> cn-trend-trade-skill
+git clone git@github.com:feaiyuhanl/cn-trend-trade-skill.git
 cd cn-trend-trade-skill
 pip install -r requirements.txt
 
