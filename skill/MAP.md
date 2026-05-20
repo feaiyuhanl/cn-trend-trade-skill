@@ -10,7 +10,9 @@
 
 配置与契约（一般只读）：`config/`、`contracts/schemas/`、`engine/report/templates/`
 
-运行时输出：`.trend-trade/tmp/`
+运行时输出：`.trend-trade/tmp/` · 筛选归档：`.trend-trade/archive/`
+
+配置：`config/watchlist.yaml`（含 `screening_policy`）、`config/themes.yaml`、`config/my_discipline.yaml`
 
 ## 流水线
 
@@ -36,6 +38,7 @@ python cli.py --finalize .trend-trade/tmp/trade_trace.json \
 | [playbooks/entry-check.md](playbooks/entry-check.md) | 仅新开仓 |
 | [playbooks/exit-check.md](playbooks/exit-check.md) | 仅持仓 |
 | [playbooks/review-session.md](playbooks/review-session.md) | 复盘 |
+| [playbooks/watchlist-screen.md](playbooks/watchlist-screen.md) | 自选观察池（非荐股） |
 
 ### Lenses（按序）
 
@@ -47,6 +50,7 @@ python cli.py --finalize .trend-trade/tmp/trade_trace.json \
 6. [lenses/exit-signals.md](lenses/exit-signals.md)
 7. [lenses/discipline.md](lenses/discipline.md)
 8. [lenses/review.md](lenses/review.md)（复盘时）
+9. [lenses/sector-correlation.md](lenses/sector-correlation.md)（自选筛选 / 持仓主题）
 
 ### Reference
 

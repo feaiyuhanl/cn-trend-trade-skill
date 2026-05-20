@@ -108,6 +108,14 @@ discipline_registry:
     template: "已考虑 A 股 T+1 与涨跌停流动性"
   - id: POSITION_LIMITS
     template: "单笔/总仓位未超 user_context.portfolio 上限"
+  - id: SECTOR_CORRELATION_CAP
+    template: "同主题暴露不超限；板块退潮日不新开同主题"
+  - id: NO_CHASE_ON_RED_DAY
+    template: "板块/大盘退潮日不追涨、不加仓"
+  - id: WATCH_POOL_NOT_BUY
+    template: "观察池不等于买入推荐"
+  - id: STALE_DATA_NO_ENTRY
+    template: "行情 as_of 非当日则不做开仓决策"
 
 observation_policy:
   # 观测句若含数字但无法匹配 evidence，须带此前缀（否则 validate 失败）

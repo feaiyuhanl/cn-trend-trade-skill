@@ -1,0 +1,36 @@
+{
+  "session_mode": "holdings_review",
+  "portfolio": {
+    "total_equity": null,
+    "risk_per_trade_pct": 0.8,
+    "max_single_position_pct": 20,
+    "max_total_exposure_pct": 70
+  },
+  "positions": [
+    {
+      "ts_code": "601016.SH",
+      "cost": null,
+      "shares": null,
+      "entry_date": null,
+      "stop_price": null,
+      "notes": "节能风电；守 MA20≈4.71、前低≈4.99；禁止加仓"
+    },
+    {
+      "ts_code": "000591.SZ",
+      "cost": null,
+      "shares": null,
+      "entry_date": null,
+      "stop_price": null,
+      "notes": "太阳能(000591)；守 MA20≈5.51；与601016同主题"
+    },
+    {
+      "ts_code": "000997.SZ",
+      "cost": null,
+      "shares": null,
+      "entry_date": null,
+      "stop_price": null,
+      "notes": "新大陆；守 MA20≈21.36；与电力链低相关"
+    }
+  ],
+  "user_notes": "见 config/my_discipline.yaml；观察池≠买入。请补全 cost/shares/stop 以启用浮盈亏机检。"
+}

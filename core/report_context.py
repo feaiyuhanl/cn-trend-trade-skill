@@ -3,9 +3,17 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from core.observations import normalize_observation
+
+_FACT_KEY_RE = re.compile(r"symbol:[^.]+\.(?:SZ|SH)\.(.+)")
+
+
+def fact_short_key(key: str) -> str:
+    m = _FACT_KEY_RE.match(key)
+    return m.group(1) if m else key
 
 
 def strength_line(strength: dict[str, Any]) -> str:
@@ -49,7 +57,14 @@ def build_trade_context(trace: dict[str, Any], pack: dict[str, Any] | None = Non
                 "entry_type": entry.get("type", ""),
                 "entry_action": entry.get("action", ""),
                 "entry_rationale": entry.get("rationale", ""),
-                "facts_rows": [{"key": k, "value": v} for k, v in sorted(facts.items())],
+                "facts_rows": [
+                    {"key": k, "short_key": fact_short_key(k), "value": v}
+                    for k, v in sorted(facts.items())
+                ],
+                "computed": pp.get("computed") or {},
+                "framework": pp.get("framework") or {},
+                "exit_plan": dec.get("exit_plan") or {},
+                "holding_review": dec.get("holding_review") or {},
                 "computed_json": json.dumps(pp.get("computed") or {}, ensure_ascii=False),
                 "framework_json": json.dumps(pp.get("framework") or {}, ensure_ascii=False),
                 "exit_json": json.dumps(dec.get("exit_plan") or {}, ensure_ascii=False),

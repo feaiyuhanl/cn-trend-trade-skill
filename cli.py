@@ -30,6 +30,7 @@ from core.report_render import (  # noqa: E402
     render_trade_report,
 )
 from core.rules_engine import load_rules_config  # noqa: E402
+from core.screen_watchlist import run_screen  # noqa: E402
 from core.validate import (  # noqa: E402
     load_json,
     validate_market_pack,
@@ -151,6 +152,28 @@ def cmd_finalize(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_screen_watchlist(args: argparse.Namespace) -> int:
+    symbols = [s.strip() for s in args.symbols.split(",")] if args.symbols else None
+    try:
+        result = run_screen(
+            symbols=symbols,
+            watchlist_path=Path(args.watchlist) if args.watchlist else None,
+            live=not args.fixture,
+            max_symbols=args.max,
+            out_dir=Path(args.out_dir) if args.out_dir else None,
+        )
+    except RuntimeError as e:
+        print(f"FAIL {e}", file=sys.stderr)
+        return 1
+    paths = result.get("_paths", {})
+    print(f"OK screened {result['meta']['screened']} as_of={result['meta'].get('as_of')}")
+    print(f"  watch_pool: {len(result.get('watch_pool') or [])}")
+    print(f"  allow_new_trend_trade: {result.get('market_filter', {}).get('allow_new_trend_trade')}")
+    print(f"  json -> {paths.get('json')}")
+    print(f"  report -> {paths.get('report')}")
+    return 0
+
+
 def cmd_list_rules(_args: argparse.Namespace) -> int:
     rules = load_rules_config()
     print(f"rules version {rules.get('version')} default_profile={rules.get('default_profile')}")
@@ -256,6 +279,13 @@ def main() -> int:
         help="配合 --finalize：报告输出目录（默认 trace 同目录）",
     )
     parser.add_argument("--list-rules", action="store_true", help="列出机检规则")
+    parser.add_argument(
+        "--screen-watchlist",
+        action="store_true",
+        help="自选趋势观察池筛选（非买入推荐，见 watchlist-screen playbook）",
+    )
+    parser.add_argument("--watchlist", default="config/watchlist.yaml", help="配合 --screen-watchlist")
+    parser.add_argument("--max", type=int, help="配合 --screen-watchlist：最多扫描只数")
     parser.add_argument("--save-journal", metavar="FILE", help="保存复盘日记 JSON 条目")
     parser.add_argument("--journal-date", help="YYYYMMDD，配合 --save-journal")
     parser.add_argument("--list-journal", action="store_true", help="列出日记日期")
@@ -309,6 +339,8 @@ def main() -> int:
         )
     if args.list_rules:
         return cmd_list_rules(args)
+    if args.screen_watchlist:
+        return cmd_screen_watchlist(args)
 
     parser.print_help()
     return 0

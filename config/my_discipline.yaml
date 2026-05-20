@@ -1,0 +1,34 @@
+# 个人交易纪律模板（可复制修改；筛选脚本可读 holdings 与 notes）
+version: "1.0.0"
+
+portfolio:
+  max_single_position_pct: 20
+  max_theme_exposure_pct: 25
+  max_open_trend_positions: 8
+
+holdings:
+  - ts_code: 601016.SH
+    name: 节能风电
+    theme: green_power
+  - ts_code: 000591.SZ
+    name: 太阳能
+    theme: green_power
+  - ts_code: 000997.SZ
+    name: 新大陆
+    theme: fintech
+
+rules:
+  - id: NO_CHASE_ON_SECTOR_RED_DAY
+    text: 持仓主题内 ≥50% 标的收跌且中位跌幅 >2% 时，当日不加仓、不开同主题新仓
+  - id: MA20_STOP
+    text: 收盘有效跌破 MA20 或结构前低（取严）执行减仓/清仓
+  - id: NO_ADD_CORRELATED
+    text: 已持有同主题时不新增该主题观察池标的
+  - id: WATCH_POOL_NOT_BUY
+    text: 观察池 ≠ 买入名单；仅回踩 MA20 缩量或突破确认后考虑
+  - id: STALE_DATA
+    text: 行情 as_of 非当日则不做开仓决策
+
+notes: |
+  2026-05 教训：批量「优先推荐」电力链在板块退潮日集体回撤；
+  筛选输出仅 watch_pool，禁止追涨。

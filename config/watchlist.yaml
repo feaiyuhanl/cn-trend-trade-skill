@@ -1,0 +1,341 @@
+# User watchlist (Xueqiu 自选)
+# Tushare ts_code format. Screen: python cli.py --screen-watchlist
+
+version: "1.0.0"
+updated_at: "2026-05-19"
+source: "雪球自选截图"
+
+# 自选筛选策略（见 skill/playbooks/watchlist-screen.md）
+screening_policy:
+  output_label: watch_pool_only
+  max_symbols_per_run: 145
+  max_watch_pool_output: 15
+  max_per_theme: 2
+  exclude_if_1d_drop_pct: 4.0
+  exclude_if_below_ma20: true
+  block_new_if_holding_same_theme: true
+  sector_retreat:
+    min_theme_symbols: 4
+    min_fraction_down: 0.5
+    min_median_drop_pct: 2.0
+  batch_size: 25
+  batch_retry: 2
+  batch_sleep_sec: 0.8
+  archive_runs: true
+  forbid_output_words:
+    - 买入推荐
+    - 优先推荐
+    - 优先买入
+  holdings_theme_file: config/my_discipline.yaml
+  themes_file: config/themes.yaml
+
+# symbols_flat：供脚本/CLI 读取；assemble 示例见文件末尾 meta.usage
+symbols_flat:
+  - 000021.SZ
+  - 000062.SZ
+  - 000070.SZ
+  - 000415.SZ
+  - 000531.SZ
+  - 000537.SZ
+  - 000601.SZ
+  - 000670.SZ
+  - 000682.SZ
+  - 000683.SZ
+  - 000690.SZ
+  - 000837.SZ
+  - 000899.SZ
+  - 000977.SZ
+  - 000989.SZ
+  - 001208.SZ
+  - 001211.SZ
+  - 001266.SZ
+  - 001309.SZ
+  - 001367.SZ
+  - 002008.SZ
+  - 002015.SZ
+  - 002049.SZ
+  - 002126.SZ
+  - 002130.SZ
+  - 002156.SZ
+  - 002185.SZ
+  - 002213.SZ
+  - 002281.SZ
+  - 002335.SZ
+  - 002371.SZ
+  - 002463.SZ
+  - 002475.SZ
+  - 002498.SZ
+  - 002533.SZ
+  - 002599.SZ
+  - 002709.SZ
+  - 002812.SZ
+  - 002902.SZ
+  - 002903.SZ
+  - 002916.SZ
+  - 002929.SZ
+  - 003011.SZ
+  - 300913.SZ
+  - 301162.SZ
+  - 600032.SH
+  - 600089.SH
+  - 600098.SH
+  - 600160.SH
+  - 600166.SH
+  - 600196.SH
+  - 600206.SH
+  - 600216.SH
+  - 600267.SH
+  - 600268.SH
+  - 600312.SH
+  - 600338.SH
+  - 600351.SH
+  - 600379.SH
+  - 600478.SH
+  - 600487.SH
+  - 600502.SH
+  - 600522.SH
+  - 600563.SH
+  - 600584.SH
+  - 600594.SH
+  - 600666.SH
+  - 600773.SH
+  - 600816.SH
+  - 600855.SH
+  - 600867.SH
+  - 600879.SH
+  - 600956.SH
+  - 600976.SH
+  - 601069.SH
+  - 601100.SH
+  - 601133.SH
+  - 601179.SH
+  - 601288.SH
+  - 601311.SH
+  - 601330.SH
+  - 601669.SH
+  - 601698.SH
+  - 601868.SH
+  - 601882.SH
+  - 601988.SH
+  - 603002.SH
+  - 603019.SH
+  - 603026.SH
+  - 603031.SH
+  - 603040.SH
+  - 603045.SH
+  - 603052.SH
+  - 603063.SH
+  - 603067.SH
+  - 603095.SH
+  - 603112.SH
+  - 603115.SH
+  - 603126.SH
+  - 603127.SH
+  - 603158.SH
+  - 603220.SH
+  - 603229.SH
+  - 603269.SH
+  - 603281.SH
+  - 603283.SH
+  - 603301.SH
+  - 603375.SH
+  - 603387.SH
+  - 603399.SH
+  - 603459.SH
+  - 603520.SH
+  - 603568.SH
+  - 603588.SH
+  - 603601.SH
+  - 603612.SH
+  - 603629.SH
+  - 603659.SH
+  - 603667.SH
+  - 603688.SH
+  - 603738.SH
+  - 603773.SH
+  - 603826.SH
+  - 603876.SH
+  - 603890.SH
+  - 603895.SH
+  - 603920.SH
+  - 603929.SH
+  - 603936.SH
+  - 603938.SH
+  - 603985.SH
+  - 603986.SH
+  - 603992.SH
+  - 605098.SH
+  - 605118.SH
+  - 605162.SH
+  - 605168.SH
+  - 605208.SH
+  - 605222.SH
+  - 605258.SH
+  - 605289.SH
+  - 605358.SH
+  - 605378.SH
+  - 605589.SH
+  - 605598.SH
+
+watchlist:
+  stocks:
+    - {ts_code: "000021.SZ", name: "深科技"}
+    - {ts_code: "000062.SZ", name: "深圳华强"}
+    - {ts_code: "000070.SZ", name: "特发信息"}
+    - {ts_code: "000415.SZ", name: "渤海租赁"}
+    - {ts_code: "000531.SZ", name: "穗恒运A"}
+    - {ts_code: "000537.SZ", name: "绿发电力"}
+    - {ts_code: "000601.SZ", name: "韶能股份"}
+    - {ts_code: "000670.SZ", name: "盈方微"}
+    - {ts_code: "000682.SZ", name: "东方电子"}
+    - {ts_code: "000683.SZ", name: "博源化工"}
+    - {ts_code: "000690.SZ", name: "宝新能源"}
+    - {ts_code: "000837.SZ", name: "秦川机床"}
+    - {ts_code: "000899.SZ", name: "赣能股份"}
+    - {ts_code: "000977.SZ", name: "浪潮信息"}
+    - {ts_code: "000989.SZ", name: "九芝堂"}
+    - {ts_code: "001208.SZ", name: "华菱线缆"}
+    - {ts_code: "001211.SZ", name: "双枪科技"}
+    - {ts_code: "001266.SZ", name: "宏英智能"}
+    - {ts_code: "001309.SZ", name: "德明利"}
+    - {ts_code: "001367.SZ", name: "海森药业"}
+    - {ts_code: "002008.SZ", name: "大族激光"}
+    - {ts_code: "002015.SZ", name: "协鑫能科"}
+    - {ts_code: "002049.SZ", name: "紫光国微"}
+    - {ts_code: "002126.SZ", name: "银轮股份"}
+    - {ts_code: "002130.SZ", name: "沃尔核材"}
+    - {ts_code: "002156.SZ", name: "通富微电"}
+    - {ts_code: "002185.SZ", name: "华天科技"}
+    - {ts_code: "002213.SZ", name: "大为股份"}
+    - {ts_code: "002281.SZ", name: "光迅科技"}
+    - {ts_code: "002335.SZ", name: "科华数据"}
+    - {ts_code: "002371.SZ", name: "北方华创"}
+    - {ts_code: "002463.SZ", name: "沪电股份"}
+    - {ts_code: "002475.SZ", name: "立讯精密"}
+    - {ts_code: "002498.SZ", name: "汉缆股份"}
+    - {ts_code: "002533.SZ", name: "金杯电工"}
+    - {ts_code: "002599.SZ", name: "盛通股份"}
+    - {ts_code: "002709.SZ", name: "天赐材料"}
+    - {ts_code: "002812.SZ", name: "恩捷股份"}
+    - {ts_code: "002902.SZ", name: "铭普光磁"}
+    - {ts_code: "002903.SZ", name: "宇环数控"}
+    - {ts_code: "002916.SZ", name: "深南电路"}
+    - {ts_code: "002929.SZ", name: "润建股份"}
+    - {ts_code: "003011.SZ", name: "海象新材"}
+    - {ts_code: "300913.SZ", name: "兆龙互连"}
+    - {ts_code: "301162.SZ", name: "国能日新"}
+    - {ts_code: "600032.SH", name: "浙江新能"}
+    - {ts_code: "600089.SH", name: "特变电工"}
+    - {ts_code: "600098.SH", name: "广州发展"}
+    - {ts_code: "600160.SH", name: "巨化股份"}
+    - {ts_code: "600166.SH", name: "福田汽车"}
+    - {ts_code: "600196.SH", name: "复星医药"}
+    - {ts_code: "600206.SH", name: "有研新材"}
+    - {ts_code: "600216.SH", name: "浙江医药"}
+    - {ts_code: "600267.SH", name: "海正药业"}
+    - {ts_code: "600268.SH", name: "国电南自"}
+    - {ts_code: "600312.SH", name: "平高电气"}
+    - {ts_code: "600338.SH", name: "西藏珠峰"}
+    - {ts_code: "600351.SH", name: "亚宝药业"}
+    - {ts_code: "600379.SH", name: "宝光股份"}
+    - {ts_code: "600478.SH", name: "科力远"}
+    - {ts_code: "600487.SH", name: "亨通光电"}
+    - {ts_code: "600502.SH", name: "安徽建工"}
+    - {ts_code: "600522.SH", name: "中天科技"}
+    - {ts_code: "600563.SH", name: "法拉电子"}
+    - {ts_code: "600584.SH", name: "长电科技"}
+    - {ts_code: "600594.SH", name: "益佰制药"}
+    - {ts_code: "600666.SH", name: "奥瑞德"}
+    - {ts_code: "600773.SH", name: "西藏城投"}
+    - {ts_code: "600816.SH", name: "建元信托"}
+    - {ts_code: "600855.SH", name: "航天长峰"}
+    - {ts_code: "600867.SH", name: "通化东宝"}
+    - {ts_code: "600879.SH", name: "航天电子"}
+    - {ts_code: "600956.SH", name: "新天绿能"}
+    - {ts_code: "600976.SH", name: "健民集团"}
+    - {ts_code: "601069.SH", name: "西部黄金"}
+    - {ts_code: "601100.SH", name: "恒立液压"}
+    - {ts_code: "601133.SH", name: "柏诚股份"}
+    - {ts_code: "601179.SH", name: "中国西电"}
+    - {ts_code: "601288.SH", name: "农业银行"}
+    - {ts_code: "601311.SH", name: "驼驼股份"}
+    - {ts_code: "601330.SH", name: "绿色动力"}
+    - {ts_code: "601669.SH", name: "中国电建"}
+    - {ts_code: "601698.SH", name: "中国卫通"}
+    - {ts_code: "601868.SH", name: "中国能建"}
+    - {ts_code: "601882.SH", name: "海天精工"}
+    - {ts_code: "601988.SH", name: "中国银行"}
+    - {ts_code: "603002.SH", name: "宏昌电子"}
+    - {ts_code: "603019.SH", name: "中科曙光"}
+    - {ts_code: "603026.SH", name: "石大胜华"}
+    - {ts_code: "603031.SH", name: "安孚科技"}
+    - {ts_code: "603040.SH", name: "新坐标"}
+    - {ts_code: "603045.SH", name: "福达合金"}
+    - {ts_code: "603052.SH", name: "可川科技"}
+    - {ts_code: "603063.SH", name: "禾望电气"}
+    - {ts_code: "603067.SH", name: "振华股份"}
+    - {ts_code: "603095.SH", name: "越剑智能"}
+    - {ts_code: "603112.SH", name: "华翔股份"}
+    - {ts_code: "603115.SH", name: "海星股份"}
+    - {ts_code: "603126.SH", name: "中材节能"}
+    - {ts_code: "603127.SH", name: "昭彭新药"}
+    - {ts_code: "603158.SH", name: "腾龙股份"}
+    - {ts_code: "603220.SH", name: "中贝通信"}
+    - {ts_code: "603229.SH", name: "奥翔药业"}
+    - {ts_code: "603269.SH", name: "海鹅股份"}
+    - {ts_code: "603281.SH", name: "江瀚新材"}
+    - {ts_code: "603283.SH", name: "赛腾股份"}
+    - {ts_code: "603301.SH", name: "振德医疗"}
+    - {ts_code: "603375.SH", name: "盛景微"}
+    - {ts_code: "603387.SH", name: "基蛋生物"}
+    - {ts_code: "603399.SH", name: "永杉锂业"}
+    - ts_code: "603459.SH"
+      name: "红板科技"
+      note: "截图名称；公开市场名称为九洲药业，请核对是否同一标的"
+    - {ts_code: "603520.SH", name: "司太立"}
+    - {ts_code: "603568.SH", name: "伟明环保"}
+    - {ts_code: "603588.SH", name: "高能环境"}
+    - {ts_code: "603601.SH", name: "再升科技"}
+    - {ts_code: "603612.SH", name: "索通发展"}
+    - {ts_code: "603629.SH", name: "利通电子"}
+    - {ts_code: "603659.SH", name: "瓦泰来"}
+    - {ts_code: "603667.SH", name: "五洲新春"}
+    - {ts_code: "603688.SH", name: "石英股份"}
+    - {ts_code: "603738.SH", name: "泰晶科技"}
+    - {ts_code: "603773.SH", name: "沃格光电"}
+    - {ts_code: "603826.SH", name: "坤彩科技"}
+    - {ts_code: "603876.SH", name: "鼎胜新材"}
+    - {ts_code: "603890.SH", name: "春秋电子"}
+    - {ts_code: "603895.SH", name: "天永智能"}
+    - {ts_code: "603920.SH", name: "世运电路"}
+    - {ts_code: "603929.SH", name: "亚翔集成"}
+    - {ts_code: "603936.SH", name: "博敏电子"}
+    - {ts_code: "603938.SH", name: "三孚股份"}
+    - {ts_code: "603985.SH", name: "恒润股份"}
+    - {ts_code: "603986.SH", name: "兆易创新"}
+    - {ts_code: "603992.SH", name: "松霖科技"}
+    - {ts_code: "605098.SH", name: "行动教育"}
+    - {ts_code: "605118.SH", name: "力鼎光电"}
+    - {ts_code: "605162.SH", name: "新中港"}
+    - {ts_code: "605168.SH", name: "三人行"}
+    - {ts_code: "605208.SH", name: "永茂泰"}
+    - {ts_code: "605222.SH", name: "起帆电缆"}
+    - {ts_code: "605258.SH", name: "协和电子"}
+    - {ts_code: "605289.SH", name: "罗曼股份"}
+    - {ts_code: "605358.SH", name: "立昂微"}
+    - {ts_code: "605378.SH", name: "野马电池"}
+    - {ts_code: "605589.SH", name: "圣泉集团"}
+    - {ts_code: "605598.SH", name: "上海港湾"}
+
+  indices:
+    - {ts_code: "000922.SZ", name: "中证红利"}
+    - {ts_code: "000300.SZ", name: "沪深300"}
+
+meta:
+  stock_count: 145
+  index_count: 2
+  incomplete_from_screenshots:
+    - "五洲新春(603667)、光迅科技(002281)、韶能股份(000601)、振德医疗(603301)：截图底部裁切，已按常见代码补全"
+  usage:
+    - "读取自选：config/watchlist.yaml → watchlist.stocks"
+    - "批量拉行情（需 TUSHARE_TOKEN）：python -c \"import yaml; ...\" 生成逗号列表后 cli.py --assemble --live --symbols ..."

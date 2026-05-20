@@ -9,12 +9,10 @@
 
 ## 一、市场环境（大盘过滤）
 
-| 项目 | 结论 |
-|------|------|
-| 环境判断 | {{ market_filter.regime_inference }} |
-| 新开趋势仓 | {{ market_filter.allow_new_trend_trade }} |
-| 置信度 | {{ market_filter.confidence }} |
-| 参考指数 | {{ market_filter.indices_considered | join(', ') }} |
+- **环境判断**：{{ market_filter.regime_inference }}
+- **新开趋势仓**：{{ market_filter.allow_new_trend_trade }}
+- **置信度**：{{ market_filter.confidence }}
+- **参考指数**：{{ market_filter.indices_considered | join(', ') }}
 
 **推理摘要**：{{ market_filter.reasoning_summary }}
 
@@ -23,39 +21,60 @@
 {% for s in symbols %}
 ### {{ s.ts_code }} {{ s.name }}
 
-| 维度 | 结论 |
-|------|------|
-| 趋势阶段 | {{ s.phase }} |
-| 强度 D/W/M | {{ s.strength_line }} |
-| 入场类型 | {{ s.entry_type }} |
-| 建议动作 | {{ s.entry_action }} |
+- **趋势阶段**：{{ s.phase }}
+- **强度 D/W/M**：{{ s.strength_line }}
+- **入场类型**：{{ s.entry_type }}
+- **建议动作**：{{ s.entry_action }}
 
-**入场/加仓**：{{ s.entry_rationale }}
+**入场/加仓说明**：{{ s.entry_rationale }}
 
-**引用事实（📊）**：
+**关键事实**
 
-| fact_key | 值 |
-|----------|-----|
-{% for f in s.facts_rows %}| `{{ f.key }}` | {{ f.value }} |
-{% endfor %}{% if not s.facts_rows %}| （无） | |
-{% endif %}
+{% for f in s.facts_rows %}
+- {{ f.short_key }}：{{ f.value }}
+{% else %}
+- （无）
+{% endfor %}
 
-**仓位（computed，脚本）**：`{{ s.computed_json }}`
+**仓位（脚本计算）**
 
-**仓位（framework，定性）**：`{{ s.framework_json }}`
+{% for k, v in s.computed.items() %}
+- {{ k }}：{{ v }}
+{% else %}
+- （无）
+{% endfor %}
 
-**出场计划**：`{{ s.exit_json }}`
+**仓位（定性框架）**
 
-**持仓复盘**：`{{ s.holding_json }}`
+{% for k, v in s.framework.items() %}
+- {{ k }}：{% if v is sequence and v is not string and v | length > 0 %}{{ v | join('；') }}{% elif v is sequence and v is not string %}（无）{% else %}{{ v }}{% endif %}
+{% else %}
+- （无）
+{% endfor %}
+
+**出场计划**
+
+{% for k, v in s.exit_plan.items() %}
+- {{ k }}：{{ v }}
+{% else %}
+- （无）
+{% endfor %}
+
+**持仓复盘**
+
+{% for k, v in s.holding_review.items() %}
+- {{ k }}：{{ v }}
+{% else %}
+- （无）
+{% endfor %}
 
 ---
 {% endfor %}
 
 ## 三、交易纪律自检
 
-| rule_id | 规则 | 通过 | 备注 |
-|---------|------|------|------|
-{% for d in discipline %}| {{ d.rule_id }} | {{ d.rule }} | {{ '✓' if d.passed else '✗' }} | {{ d.note or '' }} |
+{% for d in discipline %}
+- **{{ d.rule_id }}**（{{ '通过' if d.passed else '未通过' }}）：{{ d.rule }}{% if d.note %} — {{ d.note }}{% endif %}
 {% endfor %}
 
 ## 四、数据缺口（gaps）
@@ -66,9 +85,8 @@
 
 ## 五、推理链摘要
 
-| 步骤 | Lens | 核心推断 | 置信度 |
-|------|------|----------|--------|
-{% for step in steps %}| {{ step.step }} | {{ step.lens }} | {{ step.inference }} | {{ step.confidence }} |
+{% for step in steps %}
+- **步骤 {{ step.step }} · {{ step.lens }}**（{{ step.confidence }}）：{{ step.inference }}
 {% endfor %}
 
 ## 六、数据源状态
