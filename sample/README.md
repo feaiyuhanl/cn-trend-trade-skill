@@ -34,6 +34,12 @@ python cli.py --assemble --symbols 600519.SH,300750.SZ \
 Playbook：[skill/playbooks/review-session.md](../skill/playbooks/review-session.md)
 
 ```bash
+# 历次 finalize 会自动写入 .trend-trade/recommendations/
+python cli.py --review --review-days 10
+python cli.py --fill-review-gaps
+```
+
+```bash
 python cli.py --save-journal sample/journal/entry_sample.json
 ```
 

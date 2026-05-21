@@ -1,0 +1,15 @@
+# 市场情绪档位（pack.market_sentiment.tier 机检/Agent 引用）
+version: "1.0.0"
+
+thresholds:
+  limit_ratio_euphoric: 3.0      # 涨停/跌停 家数比 > 此值 → euphoric
+  limit_ratio_frozen: 0.35       # 比 < 此值且跌停多 → frozen
+  limit_down_frozen_min: 80
+  break_rate_high: 0.45          # 破板率过高 → 追高风险
+  max_lianban_euphoric: 5        # 最高连板数 >= 此 → 短线亢奋
+  lianban_count_hot_min: 8       # 连板股数量
+
+entry_policy:
+  euphoric: reduced              # 亢奋：新开缩仓或 wait
+  frozen: no
+  normal: yes

@@ -1,0 +1,19 @@
+# 复盘与推荐归档（cli finalize 后自动写入 .trend-trade/）
+version: "1.0.0"
+
+archive:
+  enabled: true
+  # finalize 成功后复制 trace/pack/报告到 recommendations/{run_id}/
+
+auto_review:
+  enabled: true
+  review_days: 10
+  # Agent 在用户提及「复盘」时可先运行: python cli.py --review
+
+holdings_snapshot:
+  enabled: true
+  # 每次 finalize 记录 pack.user_context.positions + config/my_discipline.yaml holdings
+
+skill_improvements:
+  enabled: true
+  # 八维评估写入 recommendations/{run_id}/skill_assessment.json；--review 简报展示

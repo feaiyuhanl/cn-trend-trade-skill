@@ -277,4 +277,7 @@ def build_live_pack(
         },
         "market_breadth": breadth,
     }
+    from core.pack_enrich import enrich_a_share_context
+
+    enrich_a_share_context(pack)
     return pack

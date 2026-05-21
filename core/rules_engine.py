@@ -10,6 +10,7 @@ from core.observations import normalize_observation
 from core.pack_facts import build_fact_index
 from core.position_calc import holding_pnl_pct
 from core.prose_verify import allowed_values_from_facts, find_raw_numbers_in_prose
+from core.theme_graph import build_theme_index, load_themes_config
 
 _ROOT = Path(__file__).resolve().parent.parent
 RULES_PATH = _ROOT / "config" / "rules.yaml"
@@ -293,6 +294,114 @@ def _pack_bar_ids(pack: dict[str, Any]) -> set[str]:
     return ids
 
 
+def _entry_types_aggressive(dec: dict[str, Any]) -> bool:
+    entry = dec.get("entry") or {}
+    return entry.get("type") not in ("wait", "none", "not_applicable") and entry.get(
+        "action"
+    ) not in ("wait", "none", "not_applicable")
+
+
+def _check_quality_blocks_entry(
+    pack: dict[str, Any], trace: dict[str, Any], _profile: dict[str, Any]
+) -> list[str]:
+    qg = (pack.get("slots") or {}).get("quality_gate") or {}
+    by = qg.get("symbols") or {}
+    held = _position_ts_codes(pack)
+    msgs: list[str] = []
+    for ts_code, dec in (trace.get("decisions") or {}).items():
+        if ts_code in held:
+            continue
+        rec = by.get(ts_code) or {}
+        if rec.get("tier") == "block" and _entry_types_aggressive(dec):
+            msgs.append(f"decisions.{ts_code}: quality_gate block, entry must be wait/none")
+    return msgs
+
+
+def _check_event_blocks_entry(
+    pack: dict[str, Any], trace: dict[str, Any], _profile: dict[str, Any]
+) -> list[str]:
+    er = (pack.get("slots") or {}).get("event_risk") or {}
+    by = er.get("symbols") or {}
+    held = _position_ts_codes(pack)
+    msgs: list[str] = []
+    for ts_code, dec in (trace.get("decisions") or {}).items():
+        if ts_code in held:
+            continue
+        rec = by.get(ts_code) or {}
+        if rec.get("block_entry") and _entry_types_aggressive(dec):
+            msgs.append(f"decisions.{ts_code}: event_risk block, entry must be wait/none")
+    return msgs
+
+
+def _check_leader_retreat_blocks_follower(
+    pack: dict[str, Any], trace: dict[str, Any], _profile: dict[str, Any]
+) -> list[str]:
+    tc = (pack.get("slots") or {}).get("theme_context") or {}
+    theme_by_id = {t["theme_id"]: t for t in tc.get("themes") or []}
+    idx = build_theme_index(load_themes_config().get("themes") or {})
+    held = _position_ts_codes(pack)
+    msgs: list[str] = []
+    for ts_code, dec in (trace.get("decisions") or {}).items():
+        if ts_code in held:
+            continue
+        meta = idx.get(ts_code) or {}
+        if meta.get("role") != "follower":
+            continue
+        th = theme_by_id.get(meta.get("theme", ""))
+        if not th:
+            continue
+        bad = th.get("leader_limit_down") or th.get("lifecycle_stage") == "retreat"
+        if bad and _entry_types_aggressive(dec):
+            msgs.append(
+                f"decisions.{ts_code}: theme {meta.get('theme')} leader weak/retreat, "
+                "follower entry must be wait/none"
+            )
+    return msgs
+
+
+def _check_sentiment_frozen_blocks_entry(
+    pack: dict[str, Any], trace: dict[str, Any], _profile: dict[str, Any]
+) -> list[str]:
+    sent = pack.get("market_sentiment") or {}
+    if sent.get("tier") != "frozen":
+        return []
+    mf = trace.get("market_filter") or {}
+    if mf.get("allow_new_trend_trade") == "yes":
+        return ["market_filter.allow_new_trend_trade=yes conflicts with sentiment.tier=frozen"]
+    return []
+
+
+def _check_sentiment_euphoric_breakout_note(
+    pack: dict[str, Any], trace: dict[str, Any], _profile: dict[str, Any]
+) -> list[str]:
+    sent = pack.get("market_sentiment") or {}
+    if sent.get("tier") != "euphoric":
+        return []
+    import yaml
+    from pathlib import Path
+
+    cfg_path = Path(__file__).resolve().parent.parent / "config" / "sentiment.yaml"
+    th = 0.45
+    if cfg_path.exists():
+        with cfg_path.open(encoding="utf-8") as f:
+            th = float((yaml.safe_load(f) or {}).get("thresholds", {}).get("break_rate_high", 0.45))
+    if float(sent.get("break_rate") or 0) < th:
+        return []
+    held = _position_ts_codes(pack)
+    msgs: list[str] = []
+    for ts_code, dec in (trace.get("decisions") or {}).items():
+        if ts_code in held:
+            continue
+        entry = dec.get("entry") or {}
+        if entry.get("type") == "breakout":
+            rat = (entry.get("rationale") or "").lower()
+            if not any(w in rat for w in ("缩仓", "减仓", "不追", "破板", "reduced", "wait")):
+                msgs.append(
+                    f"decisions.{ts_code}.entry: euphoric+high break_rate needs caution in rationale"
+                )
+    return msgs
+
+
 _CHECK_REGISTRY: dict[str, CheckFn] = {
     "observation_numbers_match_evidence": _check_observation_numbers,
     "decisions_have_evidence": _check_decisions_have_evidence,
@@ -309,6 +418,11 @@ _CHECK_REGISTRY: dict[str, CheckFn] = {
     "steps_match_lenses_applied": _check_steps_match_lenses,
     "observation_kind_consistent": _check_observation_kind_consistent,
     "framework_no_raw_numbers": _check_framework_no_raw_numbers,
+    "quality_gate_blocks_entry": _check_quality_blocks_entry,
+    "event_risk_blocks_entry": _check_event_blocks_entry,
+    "leader_retreat_blocks_follower": _check_leader_retreat_blocks_follower,
+    "sentiment_frozen_blocks_entry": _check_sentiment_frozen_blocks_entry,
+    "sentiment_euphoric_breakout_note": _check_sentiment_euphoric_breakout_note,
 }
 
 

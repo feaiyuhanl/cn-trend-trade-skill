@@ -92,6 +92,52 @@ def build_fact_index(pack: dict[str, Any]) -> dict[str, Any]:
             "latest_close": float(close),
         }
 
+    # A-share context slots → flat keys for Agent fact_keys
+    sent = pack.get("market_sentiment") or {}
+    if sent:
+        for k in (
+            "limit_up",
+            "limit_down",
+            "limit_ratio",
+            "break_rate",
+            "max_lianban",
+            "lianban_count",
+        ):
+            v = sent.get(k)
+            if isinstance(v, (int, float)):
+                flat[f"sentiment.{k}"] = float(v)
+        if sent.get("tier"):
+            flat["sentiment.tier"] = str(sent["tier"])
+
+    slots = pack.get("slots") or {}
+    tc = slots.get("theme_context") or {}
+    for th in tc.get("themes") or []:
+        tid = th.get("theme_id", "")
+        flat[f"theme:{tid}.lifecycle_stage"] = str(th.get("lifecycle_stage", ""))
+        flat[f"theme:{tid}.strength_rank"] = float(th.get("strength_rank") or 0)
+        flat[f"theme:{tid}.median_pct_1d"] = float(th.get("median_pct_1d") or 0)
+        if th.get("leader_limit_down"):
+            flat[f"theme:{tid}.leader_limit_down"] = True
+        for ld in th.get("leaders") or []:
+            lts = ld.get("ts_code", "")
+            if ld.get("pct_chg_1d") is not None:
+                flat[f"symbol:{lts}.leader_pct_chg_1d"] = float(ld["pct_chg_1d"])
+
+    qg = slots.get("quality_gate") or {}
+    for ts, rec in (qg.get("symbols") or {}).items():
+        flat[f"symbol:{ts}.quality.tier"] = str(rec.get("tier", "ok"))
+        if rec.get("block_entry"):
+            flat[f"symbol:{ts}.quality.block_entry"] = True
+        for i, flag in enumerate(rec.get("risk_flags") or []):
+            flat[f"symbol:{ts}.quality.risk_flags.{i}"] = str(flag)
+
+    er = slots.get("event_risk") or {}
+    for ts, rec in (er.get("symbols") or {}).items():
+        if rec.get("block_entry"):
+            flat[f"symbol:{ts}.event.block_entry"] = True
+        for i, flag in enumerate(rec.get("event_flags") or []):
+            flat[f"symbol:{ts}.event.flags.{i}"] = str(flag)
+
     return {
         "version": "1",
         "rules_version": None,

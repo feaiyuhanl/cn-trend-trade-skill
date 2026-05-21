@@ -13,6 +13,17 @@
 | 3 | **持仓**（模式 2 或 3）：成本、股数、入场日、止损价 | `--positions-file` 或对话整理 JSON |
 | 4 | **账户**（可选）：总权益、单笔风险 % | `--equity` `--risk-pct` |
 | 5 | **特殊说明**（可选）：财报、解禁、个人纪律 | `user_notes` |
+| 6 | **复盘意图**（可选）：回顾历史推荐 / 持仓执行 | → `review-session` + `cli.py --review` |
+
+## 复盘快捷路径
+
+用户首句含「复盘」「回顾推荐」「持仓做得怎样」→ **不必 assemble**，先：
+
+```bash
+python cli.py --review
+```
+
+再按 [review-session.md](review-session.md) 采集实际成交信息。
 
 ## 确认话术模板
 

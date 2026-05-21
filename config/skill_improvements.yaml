@@ -1,0 +1,122 @@
+# SKILL 演进八维（复盘时对照；机检见 core/skill_improvements.py）
+version: "1.0.0"
+
+dimensions:
+  - id: MF_PHASE_ENTRY
+    title: 大盘过滤与个股阶段 / 开仓动作一致性
+    lens: market-filter + trend-phase + entry-signals
+    related_rules:
+      - MF_NO_AGGRESSIVE_NEW_ENTRY
+      - MF_REDUCED_NO_BREAKOUT_CHASE
+      - PHASE_UNCLEAR_ENTRY
+      - DISCIPLINE_MF_CONSISTENT
+    review_questions:
+      - allow_new_trend_trade 与无持仓标的 entry.action 是否一致？
+      - phase=unclear 时是否均为 wait/none？
+      - reduced 环境下 breakout 是否在 rationale 说明缩仓？
+    maturity_signals:
+      ok: 连续 3 次归档无 MF/PHASE 机检 warn
+      warn: 出现 reduced 仍 breakout 且无缩仓说明
+      gap: allow=no 仍建议激进开仓
+
+  - id: SECTOR_THEME_EXPOSURE
+    title: 板块退潮与主题暴露（sector-correlation）
+    lens: sector-correlation + market-filter
+    related_rules:
+      - SECTOR_CORRELATION_CAP
+      - NO_CHASE_ON_RED_DAY
+      - MF_NO_AGGRESSIVE_NEW_ENTRY
+    review_questions:
+      - 板块退潮日是否加仓或同主题新开？
+      - 持仓主题集中度是否超 portfolio.max_theme_exposure_pct？
+      - market_filter.sector_retreats 是否在 trace 中记录？
+    maturity_signals:
+      ok: 退潮日 discipline 项 SECTOR/NO_CHASE 均 passed
+      warn: 同主题持仓≥2 仍 watch_pool 升级同主题标的
+      gap: 忽视 sector_retreats 仍加仓
+
+  - id: HOLDING_EXIT_DISCIPLINE
+    title: 持仓止损与 exit_plan 执行纪律
+    lens: exit-signals + position-management
+    related_rules:
+      - HOLD_PNL_FROM_PACK
+      - STOP_RECORDED
+    review_questions:
+      - 每笔持仓是否有 stop_price 或与 exit_plan 一致？
+      - holding_review 高 urgency 建议是否在复盘对照实际执行？
+      - vs_cost_pct 是否均来自 pack（非手编）？
+    maturity_signals:
+      ok: 全部持仓有 stop + exit_plan.primary_trigger
+      warn: urgency=high 但用户未执行（复盘记录）
+      gap: 无 stop 仍 hold_or_add
+
+  - id: WATCH_POOL_BOUNDARY
+    title: 观察池 vs 开仓边界（WATCH_POOL_NOT_BUY）
+    lens: watchlist-screen + entry-signals
+    related_rules:
+      - WATCH_POOL_NOT_BUY
+    review_questions:
+      - 是否将 watch_pool 标的直接当作买入执行？
+      - playbook=watchlist-screen 输出是否避免「买入推荐」措辞？
+      - 新开仓是否经过 pullback/突破确认而非仅观察池入选？
+    maturity_signals:
+      ok: WATCH_POOL_NOT_BUY discipline passed；无 watch→直接满仓
+      warn: 观察池标的全仓开仓无回踩证据
+      gap: 文案或决策含「优先推荐」「买入推荐」
+
+  - id: THEME_LEADER_LIFECYCLE
+    title: 题材生命周期与龙头传导
+    lens: theme-lifecycle + sector-correlation
+    related_rules:
+      - LEADER_RETREAT_BLOCKS_FOLLOWER
+      - SECTOR_CORRELATION_CAP
+    review_questions:
+      - 龙头跌停/退潮日是否仍加仓同主题跟风？
+      - theme_context.lifecycle_stage 是否写入 trace？
+    maturity_signals:
+      ok: 龙头走弱时 follower 均为 wait/none
+      gap: leader_limit_down 仍 breakout
+
+  - id: MARKET_SENTIMENT
+    title: 市场情绪（涨跌停/破板/连板）
+    lens: market-sentiment + market-filter
+    related_rules:
+      - SENTIMENT_FROZEN_BLOCKS_ENTRY
+      - SENTIMENT_EUPHORIC_BREAKOUT_NOTE
+    review_questions:
+      - frozen/euphoric 是否与 allow_new_trend_trade 一致？
+      - 破板率高时 breakout 是否缩仓说明？
+    maturity_signals:
+      ok: sentiment.tier 与 MF 一致
+      gap: frozen 仍 allow=yes
+
+  - id: EVENT_QUALITY_GATE
+    title: 事件风险与质量兜底
+    lens: event-risk + quality-gate
+    related_rules:
+      - QUALITY_GATE_BLOCKS_ENTRY
+      - EVENT_RISK_BLOCKS_ENTRY
+      - NO_JUNK_STOCK
+    review_questions:
+      - tier=block 标的是否仍进观察池或开仓？
+      - 减持/财报窗是否检查？
+    maturity_signals:
+      ok: 无 block 标的 breakout
+      gap: ST/常年亏损仍买入
+
+  - id: EVIDENCE_TRACEABILITY
+    title: 证据链 fact_keys 与归档可追溯性
+    lens: 全流程
+    related_rules:
+      - FACT_OBSERVATION_NUMBERS
+      - OBSERVATION_KIND_CONSISTENT
+      - DECISIONS_FACTS_USED
+      - STEPS_MATCH_LENSES
+    review_questions:
+      - kind=fact 的 observation 是否均有 fact_keys？
+      - decisions.facts_used 是否覆盖关键结论？
+      - 历次 finalize 是否已归档至 recommendations/{run_id}？
+    maturity_signals:
+      ok: fact 观测覆盖率≥80%；归档完整
+      warn: gaps[] 非空或 unknown_facts_used 存在
+      gap: steps 与 lenses 不一致或缺 evidence_ids

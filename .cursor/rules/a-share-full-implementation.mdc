@@ -1,0 +1,16 @@
+---
+description: cn-trend-trade-skill A股特性须完整实施，禁止只做P0
+globs: cn-trend-trade-skill/**
+alwaysApply: false
+---
+
+# cn-trend-trade-skill 完整实施
+
+改动本 Skill 时，A 股四块能力须**贯通代码+机检+文档**：
+
+1. **题材/龙头** — `config/themes.yaml` + `pack.slots.theme_context` + `theme-lifecycle` lens
+2. **市场情绪** — `pack.market_sentiment` + `market-sentiment` lens
+3. **事件风险** — `pack.slots.event_risk` + `event-risk` lens
+4. **质量兜底** — `pack.slots.quality_gate` + `quality-gate` lens + `NO_JUNK_STOCK`
+
+计划文档：`docs/PLAN_A_SHARE_FEATURES.md`。assemble 后必须 `enrich_a_share_context()`。

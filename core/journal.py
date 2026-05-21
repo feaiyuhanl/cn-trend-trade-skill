@@ -5,8 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-_ROOT = Path(__file__).resolve().parent.parent
-JOURNAL_DIR = _ROOT / ".trend-trade" / "journal"
+from core.paths import JOURNAL_DIR
 
 
 def save_journal(entry: dict[str, Any], *, date: str | None = None) -> Path:

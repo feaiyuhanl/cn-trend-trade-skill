@@ -1,42 +1,103 @@
-# 主题分组（用于 sector-correlation 与筛选上限）
-version: "1.0.0"
+# 主题图谱：龙头 / 跟风 / 生命周期（core/theme_graph.py）
+version: "1.1.0"
+
+lifecycle_stages:
+  - new
+  - ferment
+  - divergence
+  - consensus
+  - retreat
 
 themes:
   green_power:
     label: 电力/绿能/新能源链
-    ts_codes:
-      - 601016.SH  # 节能风电
-      - 000591.SZ  # 太阳能
-      - 600956.SH  # 新天绿能
-      - 000537.SZ  # 绿发电力
-      - 000531.SZ  # 穗恒运A
-      - 000601.SZ  # 韶能股份
-      - 601330.SH  # 绿色动力
-      - 601868.SH  # 中国能建
-      - 603126.SH  # 中材节能
-      - 603876.SH  # 鼎胜新材
-      - 605222.SH  # 起帆电缆
-      - 000899.SZ  # 赣能股份
-      - 000690.SZ  # 宝新能源
-      - 601669.SH  # 中国电建
-      - 600089.SH  # 特变电工
-      - 002015.SZ  # 协鑫能科
-      - 601179.SH  # 中国西电
-      - 600312.SH  # 平高电气
+    leaders:
+      - ts_code: 601991.SH
+        name: 大唐发电
+        note: 板块情绪锚；跌停或大幅回撤时降级同主题跟风
+    members:
+      - ts_code: 601016.SH
+        name: 节能风电
+        role: follower
+      - ts_code: 000591.SZ
+        name: 太阳能
+        role: follower
+      - ts_code: 600956.SH
+        name: 新天绿能
+        role: follower
+      - ts_code: 000537.SZ
+        name: 绿发电力
+        role: follower
+      - ts_code: 000531.SZ
+        name: 穗恒运A
+        role: follower
+      - ts_code: 000601.SZ
+        name: 韶能股份
+        role: follower
+      - ts_code: 601330.SH
+        name: 绿色动力
+        role: follower
+      - ts_code: 601868.SH
+        name: 中国能建
+        role: follower
+      - ts_code: 603126.SH
+        name: 中材节能
+        role: follower
+      - ts_code: 603876.SH
+        name: 鼎胜新材
+        role: follower
+      - ts_code: 605222.SH
+        name: 起帆电缆
+        role: follower
+      - ts_code: 000899.SZ
+        name: 赣能股份
+        role: follower
+      - ts_code: 000690.SZ
+        name: 宝新能源
+        role: follower
+      - ts_code: 601669.SH
+        name: 中国电建
+        role: follower
+      - ts_code: 600089.SH
+        name: 特变电工
+        role: follower
+      - ts_code: 002015.SZ
+        name: 协鑫能科
+        role: follower
+      - ts_code: 601179.SH
+        name: 中国西电
+        role: follower
+      - ts_code: 600312.SH
+        name: 平高电气
+        role: follower
 
   semiconductor:
     label: 半导体/电子制造
-    ts_codes:
-      - 600584.SH
-      - 002371.SZ
-      - 002475.SZ
-      - 002156.SZ
-      - 603986.SH
-      - 603019.SH
-      - 000977.SZ
-      - 002463.SZ
+    leaders:
+      - ts_code: 603986.SH
+        name: 兆易创新
+    members:
+      - ts_code: 600584.SH
+        role: follower
+      - ts_code: 002371.SZ
+        role: follower
+      - ts_code: 002475.SZ
+        role: follower
+      - ts_code: 002156.SZ
+        role: follower
+      - ts_code: 603019.SH
+        role: follower
+      - ts_code: 000977.SZ
+        role: follower
+      - ts_code: 002463.SZ
+        role: follower
 
   fintech:
     label: 金融科技/支付
-    ts_codes:
-      - 000997.SZ  # 新大陆
+    leaders:
+      - ts_code: 000997.SZ
+        name: 新大陆
+    members:
+      - ts_code: 000997.SZ
+        name: 新大陆
+        role: leader

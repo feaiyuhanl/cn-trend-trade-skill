@@ -107,6 +107,18 @@ def assemble(
     from adapters.runner import apply_adapters
 
     pack = apply_adapters(pack)
+    from core.pack_enrich import enrich_a_share_context, extra_symbols_for_assemble
+
+    if symbols and not use_fixture:
+        extra = extra_symbols_for_assemble(symbols)
+        have = {s["ts_code"] for s in pack.get("symbols", [])}
+        missing = [t for t in extra if t not in have]
+        if missing:
+            from adapters.tushare_market import apply_live
+
+            extra_pack = apply_live(symbols=missing, indices_profile=indices_profile, run_id=run_id)
+            pack["symbols"].extend(extra_pack.get("symbols", []))
+    enrich_a_share_context(pack)
     rules = load_rules_config()
     attach_fact_index(pack, rules_version=rules.get("version"))
 

@@ -2,18 +2,23 @@
   "meta": {
     "run_id": "20260519-trend-demo",
     "as_of": "2026-05-19T15:30:00+08:00",
-    "skill_version": "0.3.0",
+    "skill_version": "0.6.0",
     "rules_version": "1.0.0",
     "rules_profile": "development",
     "playbook": "full-analysis",
     "session_mode": "mixed",
     "lenses_applied": [
       "market-filter",
+      "market-sentiment",
+      "theme-lifecycle",
+      "quality-gate",
+      "event-risk",
       "trend-strength",
       "trend-phase",
       "entry-signals",
       "position-management",
       "exit-signals",
+      "sector-correlation",
       "discipline"
     ]
   },
@@ -24,113 +29,135 @@
     {
       "step": 1,
       "lens": "market-filter",
-      "prompts_used": [
-        "宽基 vs 规模分层是否一致？",
-        "中小盘是否强于大盘？",
-        "当前环境是否适合新开趋势仓？"
-      ],
-      "evidence_ids": [
-        "bar_000300_d_20260519",
-        "bar_000905_d_20260519",
-        "bar_000852_d_20260519",
-        "bar_399006_d_20260519"
-      ],
+      "prompts_used": ["宽基 vs 规模分层是否一致？", "当前环境是否适合新开趋势仓？"],
+      "evidence_ids": ["bar_000300_d_20260519", "bar_000905_d_20260519", "bar_000852_d_20260519"],
       "observations": [
-        {
-          "kind": "fact",
-          "text": "沪深300 日线收跌 -0.35%",
-          "fact_keys": ["bar:bar_000300_d_20260519:pct_chg"]
-        },
-        {
-          "kind": "qualitative",
-          "text": "中证500/1000 日线收涨且 ma20 斜率为正",
-          "fact_keys": []
-        },
-        {
-          "kind": "qualitative",
-          "text": "宽基内部：大盘偏弱、中小盘偏强",
-          "fact_keys": []
-        }
+        { "kind": "fact", "text": "沪深300 日线收跌 -0.35%", "fact_keys": ["bar:bar_000300_d_20260519:pct_chg"] },
+        { "kind": "qualitative", "text": "宽基内部：大盘偏弱、中小盘偏强", "fact_keys": [] }
       ],
-      "inference": "市场呈结构性分化，整体非全面趋势友好；新开仓宜 reduced 仓位并优选相对强势规模层",
+      "inference": "结构性分化；新开仓宜 reduced",
       "confidence": "medium"
     },
     {
       "step": 2,
-      "lens": "trend-strength",
-      "prompts_used": ["各标的 D/W/M 强度与对齐度"],
-      "evidence_ids": ["bar_600519_d_20260519", "bar_600519_w_20260516", "bar_300750_d_20260519"],
+      "lens": "market-sentiment",
+      "prompts_used": ["涨跌停比", "破板率", "连板热度"],
+      "evidence_ids": [],
       "observations": [
-        "[qualitative] 600519 日线/周线结构偏多，月线中性",
-        "[qualitative] 300750 日线偏弱，周线中性，月线数据不足",
-        {
-          "kind": "fact",
-          "text": "vol_ratio_5_20=1.12",
-          "fact_keys": ["symbol:600519.SH.derived_hints.vol_ratio_5_20"]
-        }
+        { "kind": "qualitative", "text": "fixture：sentiment.tier=normal，破板率适中", "fact_keys": [] }
       ],
-      "inference": "600519 多周期 mostly_aligned；300750 多周期 conflicted",
+      "inference": "短线情绪中性，非冰点亦非亢奋追涨区",
       "confidence": "medium"
     },
     {
       "step": 3,
-      "lens": "trend-phase",
-      "prompts_used": ["600519 处于哪一趋势阶段？"],
-      "evidence_ids": ["bar_600519_d_20260519", "bar_600519_w_20260516"],
+      "lens": "theme-lifecycle",
+      "prompts_used": ["题材阶段", "龙头健康"],
+      "evidence_ids": [],
       "observations": [
-        "[qualitative] 日线 HH/HL，价在 MA20/60 上方",
-        "vol_ratio_5_20=1.12",
-        "距 52 周高点 -3.2%"
+        { "kind": "qualitative", "text": "样例标的未映射主题龙头；无 sector_retreat", "fact_keys": [] }
       ],
-      "inference": "贵州茅台：加速期（acceleration），但接近前高阻力区",
-      "confidence": "medium"
+      "inference": "theme_assessment 空或 N/A；持仓主题分析在 sector-correlation",
+      "confidence": "low"
     },
     {
       "step": 4,
-      "lens": "entry-signals",
-      "prompts_used": ["突破 vs 回踩并列评估"],
-      "evidence_ids": ["bar_600519_d_20260519", "bar_300750_d_20260519"],
+      "lens": "quality-gate",
+      "prompts_used": ["ST", "常年亏损", "黑名单"],
+      "evidence_ids": [],
       "observations": [
-        "[qualitative] 600519 已有持仓，回踩逻辑优于追高突破",
-        "[qualitative] 300750 range_bound + 缩量，缺乏突破证据"
+        { "kind": "qualitative", "text": "600519/300750 tier=ok，无 block", "fact_keys": [] }
       ],
-      "inference": "600519 倾向 pullback/hold；300750 wait",
-      "confidence": "medium"
+      "inference": "质量兜底通过，非垃圾股",
+      "confidence": "high"
     },
     {
       "step": 5,
-      "lens": "position-management",
-      "prompts_used": ["仓位框架与风险预算"],
-      "evidence_ids": ["bar_600519_d_20260519"],
+      "lens": "event-risk",
+      "prompts_used": ["减持", "财报窗", "业绩预告"],
+      "evidence_ids": [],
       "observations": [
-        "[qualitative] reduced 环境下控制加仓规模",
-        "[qualitative] 止损参考结构低点或 2ATR"
+        { "kind": "qualitative", "text": "fixture 无 event block", "fact_keys": [] }
       ],
-      "inference": "600519 维持 framework 加仓触发条件；300750 无新开仓计划",
+      "inference": "事件风险未阻断新开",
       "confidence": "medium"
     },
     {
       "step": 6,
-      "lens": "exit-signals",
-      "prompts_used": ["移动止损与分批止盈"],
-      "evidence_ids": ["bar_600519_d_20260519"],
+      "lens": "trend-strength",
+      "prompts_used": ["各标的 D/W/M 强度与对齐度"],
+      "evidence_ids": ["bar_600519_d_20260519", "bar_600519_w_20260516", "bar_300750_d_20260519"],
       "observations": [
-        "[qualitative] 600519 逼近 resistance_levels 可考虑分批",
-        "[qualitative] 300750 无持仓，exit 不适用"
+        { "kind": "qualitative", "text": "600519 多周期偏多；300750 冲突", "fact_keys": [] },
+        { "kind": "fact", "text": "vol_ratio_5_20=1.12", "fact_keys": ["symbol:600519.SH.derived_hints.vol_ratio_5_20"] }
       ],
-      "inference": "600519 trail MA20 或结构止损；300750 exit_plan 空",
+      "inference": "600519 mostly_aligned；300750 conflicted",
       "confidence": "medium"
     },
     {
       "step": 7,
-      "lens": "discipline",
-      "prompts_used": ["纪律自检与 market_filter 一致性"],
+      "lens": "trend-phase",
+      "prompts_used": ["趋势阶段"],
+      "evidence_ids": ["bar_600519_d_20260519"],
+      "observations": [
+        { "kind": "qualitative", "text": "600519 加速期；300750 unclear", "fact_keys": [] }
+      ],
+      "inference": "600519 acceleration；300750 unclear",
+      "confidence": "medium"
+    },
+    {
+      "step": 8,
+      "lens": "entry-signals",
+      "prompts_used": ["突破 vs 回踩"],
+      "evidence_ids": ["bar_600519_d_20260519", "bar_300750_d_20260519"],
+      "observations": [
+        { "kind": "qualitative", "text": "600519 pullback/hold；300750 wait", "fact_keys": [] }
+      ],
+      "inference": "无激进 breakout 新开",
+      "confidence": "medium"
+    },
+    {
+      "step": 9,
+      "lens": "position-management",
+      "prompts_used": ["仓位框架"],
+      "evidence_ids": ["bar_600519_d_20260519"],
+      "observations": [
+        { "kind": "qualitative", "text": "reduced 环境控制加仓", "fact_keys": [] }
+      ],
+      "inference": "600519 维持加仓触发条件；300750 无新开",
+      "confidence": "medium"
+    },
+    {
+      "step": 10,
+      "lens": "exit-signals",
+      "prompts_used": ["移动止损"],
+      "evidence_ids": ["bar_600519_d_20260519"],
+      "observations": [
+        { "kind": "qualitative", "text": "600519 trail MA20", "fact_keys": [] }
+      ],
+      "inference": "exit_plan 已定义",
+      "confidence": "medium"
+    },
+    {
+      "step": 11,
+      "lens": "sector-correlation",
+      "prompts_used": ["主题暴露"],
       "evidence_ids": [],
       "observations": [
-        "[qualitative] allow_new_trend_trade=reduced，无激进 breakout 新开",
-        "[qualitative] 300750 维持 wait 符合 NO_SIGNAL"
+        { "kind": "qualitative", "text": "样例无同主题集中新开", "fact_keys": [] }
       ],
-      "inference": "discipline_checklist 已逐项核对，与 market_filter 一致",
+      "inference": "主题暴露可控",
+      "confidence": "medium"
+    },
+    {
+      "step": 12,
+      "lens": "discipline",
+      "prompts_used": ["纪律自检"],
+      "evidence_ids": [],
+      "observations": [
+        { "kind": "qualitative", "text": "allow=reduced，质量/事件/情绪项已核对", "fact_keys": [] }
+      ],
+      "inference": "discipline_checklist 与 market_filter 一致",
       "confidence": "high"
     }
   ],
@@ -139,16 +166,18 @@
     "index_groups_used": ["broad_market", "size_segment"],
     "regime_inference": "structural_rotation_small_cap_outperform",
     "allow_new_trend_trade": "reduced",
-    "reasoning_summary": "未 hardcode 单一指数阈值；综合宽基与规模组后判断为分化市",
+    "sector_retreats": [],
+    "sentiment_tier": "normal",
+    "reasoning_summary": "指数分化 + 情绪中性；非全面趋势友好",
     "confidence": "medium"
   },
+  "theme_assessment": [],
   "decisions": {
     "600519.SH": {
       "evidence_ids": ["bar_600519_d_20260519", "bar_600519_w_20260516"],
       "facts_used": [
         "symbol:600519.SH.latest_close",
         "symbol:600519.SH.derived_hints.vol_ratio_5_20",
-        "symbol:600519.SH.derived_hints.distance_from_52w_high_pct",
         "symbol:600519.SH.derived_hints.structure",
         "holding:600519.SH:vs_cost_pct"
       ],
@@ -162,32 +191,15 @@
       "entry": {
         "type": "pullback",
         "action": "hold_or_add_on_confirmed_pullback",
-        "rationale": "已有持仓浮盈；突破 1700 前更适合等回踩 MA20 缩量企稳再加（reduced 环境控制加仓规模）"
+        "rationale": "已有持仓；reduced 环境等回踩 MA20 缩量再加"
       },
-      "position_plan": {
-        "framework": {
-          "add_triggers": ["回踩 MA20 缩量企稳", "大盘 allow 非 no"],
-          "max_total_pct": 0.15,
-          "stop_logic": "structure_low_or_2ATR_below_entry"
-        },
-        "computed": {}
-      },
-      "exit_plan": {
-        "trail_stop": "MA20 日线或 1580 结构止损取高",
-        "partial_take": "逼近 resistance_levels[1] 分批",
-        "time_stop": "10 交易日横盘无新高则减仓"
-      },
-      "holding_review": {
-        "action": "hold",
-        "urgency": "low"
-      }
+      "position_plan": { "framework": { "max_total_pct": 0.15 }, "computed": {} },
+      "exit_plan": { "trail_stop": "MA20 或 1580 结构止损取高" },
+      "holding_review": { "action": "hold", "urgency": "low" }
     },
     "300750.SZ": {
       "evidence_ids": ["bar_300750_d_20260519"],
-      "facts_used": [
-        "symbol:300750.SZ.derived_hints.structure",
-        "symbol:300750.SZ.derived_hints.vol_ratio_5_20"
-      ],
+      "facts_used": ["symbol:300750.SZ.derived_hints.structure"],
       "phase": "unclear",
       "strength": {
         "daily": "weak",
@@ -195,22 +207,20 @@
         "monthly": "unknown",
         "alignment": "conflicted"
       },
-      "entry": {
-        "type": "wait",
-        "action": "wait",
-        "rationale": "range_bound + 缩量，缺乏趋势启动证据"
-      },
+      "entry": { "type": "wait", "action": "wait", "rationale": "range_bound，无趋势启动证据" },
       "position_plan": { "framework": {}, "computed": {} },
       "exit_plan": {}
     }
   },
   "discipline_checklist": [
-    { "rule_id": "MF_NO_AGGRESSIVE", "rule": "大盘过滤为 reduced 时不激进加仓", "passed": true, "note": "" },
-    { "rule_id": "NO_SIGNAL_NO_TRADE", "rule": "无信号不交易（300750 维持 wait）", "passed": true, "note": "" },
-    { "rule_id": "STOP_RECORDED", "rule": "止损价已记录", "passed": true, "note": "600519 stop 1580" }
+    { "rule_id": "MF_NO_AGGRESSIVE", "rule": "大盘 reduced 不激进", "passed": true, "note": "" },
+    { "rule_id": "NO_SIGNAL_NO_TRADE", "rule": "300750 wait", "passed": true, "note": "" },
+    { "rule_id": "STOP_RECORDED", "rule": "止损已记录", "passed": true, "note": "600519 stop 1580" },
+    { "rule_id": "NO_JUNK_STOCK", "rule": "无 block 标的", "passed": true, "note": "" },
+    { "rule_id": "NO_ST_RISK", "rule": "无 ST/黑历史", "passed": true, "note": "" },
+    { "rule_id": "EVENT_RISK_CLEAR", "rule": "无事件阻断", "passed": true, "note": "" },
+    { "rule_id": "THEME_LEADER_HEALTH", "rule": "无龙头跌停主题", "passed": true, "note": "" },
+    { "rule_id": "SENTIMENT_AWARE", "rule": "已读 sentiment", "passed": true, "note": "" }
   ],
-  "gaps": [
-    "market_breadth 未采集，涨跌家数维度缺失",
-    "tushare 未配置，月线部分标的 bars 不完整"
-  ]
+  "gaps": ["fixture 模式；live 可补全 event/quality 自动检测"]
 }

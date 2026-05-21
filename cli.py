@@ -29,6 +29,12 @@ from core.report_render import (  # noqa: E402
     render_review_report,
     render_trade_report,
 )
+from core.recommendation_log import (  # noqa: E402
+    list_recommendation_dates,
+    list_recommendation_runs,
+    runs_missing_review,
+)
+from core.review_brief import build_review_brief  # noqa: E402
 from core.rules_engine import load_rules_config  # noqa: E402
 from core.screen_watchlist import run_screen  # noqa: E402
 from core.validate import (  # noqa: E402
@@ -137,7 +143,12 @@ def cmd_finalize(args: argparse.Namespace) -> int:
     trace_path = Path(args.finalize)
     pack_path = Path(args.pack)
     out_dir = Path(args.out_dir) if args.out_dir else trace_path.parent
-    code, errs = finalize_trace(trace_path, pack_path, out_dir=out_dir)
+    code, errs = finalize_trace(
+        trace_path,
+        pack_path,
+        out_dir=out_dir,
+        no_auto_review=getattr(args, "no_auto_review", False),
+    )
     if code != 0:
         for e in errs:
             print(f"FAIL {e}", file=sys.stderr)
@@ -149,6 +160,8 @@ def cmd_finalize(args: argparse.Namespace) -> int:
     print(f"OK audit-sheet -> {out_dir / 'audit-sheet.md'}")
     if load_json(Path(args.finalize)).get("review"):
         print(f"OK review-report -> {out_dir / 'review-report.md'}")
+    if not getattr(args, "no_auto_review", False):
+        print("OK recommendation archived -> .trend-trade/recommendations/")
     return 0
 
 
@@ -187,6 +200,47 @@ def cmd_save_journal(args: argparse.Namespace) -> int:
     data = load_json(path)
     out = save_journal(data, date=args.date)
     print(f"OK journal -> {out}")
+    return 0
+
+
+def cmd_review(args: argparse.Namespace) -> int:
+    focus = "holdings" if getattr(args, "review_holdings_only", False) else "all"
+    text = build_review_brief(
+        date=args.review_date,
+        days=args.review_days,
+        focus=focus,
+    )
+    if args.out:
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(text, encoding="utf-8")
+        print(f"OK review-brief -> {out}")
+    else:
+        print(text)
+    return 0
+
+
+def cmd_fill_review_gaps(args: argparse.Namespace) -> int:
+    gaps = runs_missing_review(days=args.review_days)
+    if not gaps:
+        print("OK 无待补齐复盘（近期归档均已含 trace.review 或尚无归档）")
+        return 0
+    print(f"待补齐复盘 {len(gaps)} 条（最近 {args.review_days} 次归档）：")
+    for g in gaps:
+        arch = g.get("archive_dir") or g.get("run_id")
+        print(f"  {g.get('as_of_date')}\t{g.get('run_id')}\t{arch}")
+    print("\n运行: python cli.py --review 获取简报，再按 review-session playbook 写 trace.review 后 finalize")
+    return 0
+
+
+def cmd_list_recommendations(_args: argparse.Namespace) -> int:
+    dates = list_recommendation_dates()
+    if not dates:
+        print("(no archived recommendations)")
+        return 0
+    for d in dates:
+        n = len(list_recommendation_runs(date=d))
+        print(f"{d}\t{n} run(s)")
     return 0
 
 
@@ -289,6 +343,38 @@ def main() -> int:
     parser.add_argument("--save-journal", metavar="FILE", help="保存复盘日记 JSON 条目")
     parser.add_argument("--journal-date", help="YYYYMMDD，配合 --save-journal")
     parser.add_argument("--list-journal", action="store_true", help="列出日记日期")
+    parser.add_argument(
+        "--review",
+        action="store_true",
+        help="生成复盘简报（历史推荐 + 持仓快照 + 规则提示）",
+    )
+    parser.add_argument("--review-date", type=str, help="复盘日期 YYYYMMDD（与 --review 联用）")
+    parser.add_argument(
+        "--review-days",
+        type=int,
+        default=10,
+        help="复盘回溯条数/归档次数（默认 10）",
+    )
+    parser.add_argument(
+        "--review-holdings-only",
+        action="store_true",
+        help="复盘简报仅含持仓部分",
+    )
+    parser.add_argument(
+        "--fill-review-gaps",
+        action="store_true",
+        help="列出已归档但未写 trace.review 的 run_id",
+    )
+    parser.add_argument(
+        "--no-auto-review",
+        action="store_true",
+        help="finalize 时不归档推荐、不写持仓快照",
+    )
+    parser.add_argument(
+        "--list-recommendations",
+        action="store_true",
+        help="按日期列出已归档推荐",
+    )
     parser.add_argument("--status", action="store_true")
     parser.add_argument("--list-indices", action="store_true")
     parser.add_argument("--profile", help="配合 --list-indices")
@@ -300,6 +386,12 @@ def main() -> int:
         return cmd_list_indices(args)
     if args.list_journal:
         return cmd_list_journal(args)
+    if args.list_recommendations:
+        return cmd_list_recommendations(args)
+    if args.fill_review_gaps:
+        return cmd_fill_review_gaps(args)
+    if args.review:
+        return cmd_review(args)
     if args.save_journal:
         return cmd_save_journal(
             argparse.Namespace(file=args.save_journal, date=args.journal_date)

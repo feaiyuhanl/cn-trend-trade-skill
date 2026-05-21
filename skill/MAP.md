@@ -37,20 +37,26 @@ python cli.py --finalize .trend-trade/tmp/trade_trace.json \
 | [playbooks/full-analysis.md](playbooks/full-analysis.md) | 完整分析 |
 | [playbooks/entry-check.md](playbooks/entry-check.md) | 仅新开仓 |
 | [playbooks/exit-check.md](playbooks/exit-check.md) | 仅持仓 |
-| [playbooks/review-session.md](playbooks/review-session.md) | 复盘 |
+| [playbooks/review-session.md](playbooks/review-session.md) | 复盘（`cli.py --review` + 归档推荐） |
 | [playbooks/watchlist-screen.md](playbooks/watchlist-screen.md) | 自选观察池（非荐股） |
 
-### Lenses（按序）
+### Lenses（按序 · 完整分析）
 
 1. [lenses/market-filter.md](lenses/market-filter.md)
-2. [lenses/trend-strength.md](lenses/trend-strength.md)
-3. [lenses/trend-phase.md](lenses/trend-phase.md)
-4. [lenses/entry-signals.md](lenses/entry-signals.md)
-5. [lenses/position-management.md](lenses/position-management.md)
-6. [lenses/exit-signals.md](lenses/exit-signals.md)
-7. [lenses/discipline.md](lenses/discipline.md)
-8. [lenses/review.md](lenses/review.md)（复盘时）
-9. [lenses/sector-correlation.md](lenses/sector-correlation.md)（自选筛选 / 持仓主题）
+2. [lenses/market-sentiment.md](lenses/market-sentiment.md)
+3. [lenses/theme-lifecycle.md](lenses/theme-lifecycle.md)
+4. [lenses/quality-gate.md](lenses/quality-gate.md)
+5. [lenses/event-risk.md](lenses/event-risk.md)
+6. [lenses/trend-strength.md](lenses/trend-strength.md)
+7. [lenses/trend-phase.md](lenses/trend-phase.md)
+8. [lenses/entry-signals.md](lenses/entry-signals.md)
+9. [lenses/position-management.md](lenses/position-management.md)
+10. [lenses/exit-signals.md](lenses/exit-signals.md)
+11. [lenses/sector-correlation.md](lenses/sector-correlation.md)
+12. [lenses/discipline.md](lenses/discipline.md)
+13. [lenses/review.md](lenses/review.md)（复盘时 · [演进维](reference/skill-improvements.md)）
+
+配置：`config/themes.yaml`（含龙头）、`config/sentiment.yaml`、`config/event_risk.yaml`、`config/quality_gate.yaml`
 
 ### Reference
 

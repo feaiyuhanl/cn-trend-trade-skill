@@ -16,6 +16,9 @@ FIX_TRACE = ROOT / "sample" / "trade_trace.sample.json"
 
 def test_finalize_writes_reports(tmp_path: Path) -> None:
     pack = load_json(FIX_PACK)
+    from core.pack_enrich import enrich_a_share_context
+
+    enrich_a_share_context(pack)
     attach_fact_index(pack)
     trace = load_json(FIX_TRACE)
 
@@ -40,6 +43,9 @@ def test_finalize_writes_reports(tmp_path: Path) -> None:
 
 def test_steps_mismatch_fails_finalize(tmp_path: Path) -> None:
     pack = load_json(FIX_PACK)
+    from core.pack_enrich import enrich_a_share_context
+
+    enrich_a_share_context(pack)
     attach_fact_index(pack)
     trace = load_json(FIX_TRACE)
     trace["steps"] = trace["steps"][:2]

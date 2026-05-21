@@ -2,6 +2,10 @@
 !.trend-trade/tmp/.gitkeep
 .trend-trade/journal/*
 !.trend-trade/journal/.gitkeep
+.trend-trade/recommendations/*
+!.trend-trade/recommendations/.gitkeep
+.trend-trade/holdings/*
+!.trend-trade/holdings/.gitkeep
 __pycache__/
 .pytest_cache/
 *.pyc

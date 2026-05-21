@@ -8,7 +8,7 @@ source: "雪球自选截图"
 # 自选筛选策略（见 skill/playbooks/watchlist-screen.md）
 screening_policy:
   output_label: watch_pool_only
-  max_symbols_per_run: 145
+  max_symbols_per_run: 149
   max_watch_pool_output: 15
   max_per_theme: 2
   exclude_if_1d_drop_pct: 4.0
@@ -79,6 +79,7 @@ symbols_flat:
   - 600032.SH
   - 600089.SH
   - 600098.SH
+  - 600105.SH
   - 600160.SH
   - 600166.SH
   - 600196.SH
@@ -155,6 +156,7 @@ symbols_flat:
   - 603773.SH
   - 603826.SH
   - 603876.SH
+  - 603881.SH
   - 603890.SH
   - 603895.SH
   - 603920.SH
@@ -197,6 +199,9 @@ watchlist:
     - {ts_code: "001208.SZ", name: "华菱线缆"}
     - {ts_code: "001211.SZ", name: "双枪科技"}
     - {ts_code: "001266.SZ", name: "宏英智能"}
+    - ts_code: "001287.SZ"
+      name: "中电港"
+      note: "用户口述「重点港」；无此 A 股简称，按同音录入，请核对"
     - {ts_code: "001309.SZ", name: "德明利"}
     - {ts_code: "001367.SZ", name: "海森药业"}
     - {ts_code: "002008.SZ", name: "大族激光"}
@@ -244,6 +249,7 @@ watchlist:
     - {ts_code: "600522.SH", name: "中天科技"}
     - {ts_code: "600563.SH", name: "法拉电子"}
     - {ts_code: "600584.SH", name: "长电科技"}
+    - {ts_code: "600602.SH", name: "云赛智联"}
     - {ts_code: "600594.SH", name: "益佰制药"}
     - {ts_code: "600666.SH", name: "奥瑞德"}
     - {ts_code: "600773.SH", name: "西藏城投"}
@@ -332,7 +338,7 @@ watchlist:
     - {ts_code: "000300.SZ", name: "沪深300"}
 
 meta:
-  stock_count: 145
+  stock_count: 147
   index_count: 2
   incomplete_from_screenshots:
     - "五洲新春(603667)、光迅科技(002281)、韶能股份(000601)、振德医疗(603301)：截图底部裁切，已按常见代码补全"

@@ -6,6 +6,7 @@ from typing import Any
 
 from core.position_calc import build_position_computed
 from core.rules_engine import load_rules_config
+from core.trace_a_share import merge_pack_a_share_into_trace
 from core.trace_resolve import build_resolved_block, build_sources_snapshot
 
 
@@ -16,6 +17,7 @@ def enrich_trace(trace: dict[str, Any], pack: dict[str, Any]) -> dict[str, Any]:
     trace["meta"].setdefault("rules_profile", (pack.get("meta") or {}).get("rules_profile"))
 
     trace["sources_snapshot"] = build_sources_snapshot(pack)
+    merge_pack_a_share_into_trace(trace, pack)
 
     for ts_code, dec in (trace.get("decisions") or {}).items():
         computed = build_position_computed(pack, ts_code)

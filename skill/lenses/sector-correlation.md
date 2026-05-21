@@ -9,6 +9,7 @@
 - `config/themes.yaml`
 - `config/my_discipline.yaml` → `holdings[]`
 - 筛选结果 `market_filter.sector_retreats`
+- `pack.slots.theme_context`（含 `lifecycle_stage`、`leader_limit_down`）
 
 ## 检查项
 

@@ -156,6 +156,17 @@ def build_review_context(trace: dict[str, Any], pack: dict[str, Any] | None = No
     for row in review.get("planned_vs_actual") or []:
         ts = row.get("ts_code", "")
         rows.append({**row, "name": names.get(ts, "")})
+    skill_dims = []
+    for dim_id, block in (review.get("skill_dimensions") or {}).items():
+        if isinstance(block, dict):
+            skill_dims.append(
+                {
+                    "id": dim_id,
+                    "status": block.get("status", "—"),
+                    "reflection": block.get("reflection", ""),
+                    "action": block.get("action", ""),
+                }
+            )
     return {
         "meta": trace.get("meta", {}),
         "review": review,
@@ -163,4 +174,5 @@ def build_review_context(trace: dict[str, Any], pack: dict[str, Any] | None = No
         "violations": review.get("discipline_violations") or [],
         "lessons": review.get("lessons") or [],
         "improvements": review.get("next_improvements") or review.get("improvements") or [],
+        "skill_dimensions": skill_dims,
     }

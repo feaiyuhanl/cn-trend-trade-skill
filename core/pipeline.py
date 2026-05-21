@@ -7,6 +7,9 @@ from typing import Any
 
 from core.assemble import save_trace
 from core.enrich_trace import enrich_trace
+from core.holdings_snapshot import save_holdings_snapshot
+from core.recommendation_log import archive_finalize_run
+from core.skill_improvements import assess_trace, save_assessment
 from core.report_render import (
     write_audit_sheet,
     write_decision_dossier,
@@ -20,11 +23,44 @@ from core.validate import (
 )
 
 
+def _holdings_snapshot_enabled() -> bool:
+    try:
+        import yaml
+    except ImportError:
+        return True
+    from core.paths import CONFIG_DIR
+
+    path = CONFIG_DIR / "review.yaml"
+    if not path.exists():
+        return True
+    with path.open(encoding="utf-8") as f:
+        cfg = yaml.safe_load(f) or {}
+    return bool((cfg.get("holdings_snapshot") or {}).get("enabled", True))
+
+
+def _review_archive_enabled(*, no_auto_review: bool) -> bool:
+    if no_auto_review:
+        return False
+    try:
+        import yaml
+    except ImportError:
+        return True
+    from core.paths import CONFIG_DIR
+
+    path = CONFIG_DIR / "review.yaml"
+    if not path.exists():
+        return True
+    with path.open(encoding="utf-8") as f:
+        cfg = yaml.safe_load(f) or {}
+    return bool((cfg.get("archive") or {}).get("enabled", True))
+
+
 def finalize_trace(
     trace_path: Path,
     pack_path: Path,
     *,
     out_dir: Path | None = None,
+    no_auto_review: bool = False,
 ) -> tuple[int, list[str]]:
     """Enrich trace, validate, render reports. Returns (exit_code, error_messages)."""
     trace = load_json(trace_path)
@@ -52,4 +88,20 @@ def finalize_trace(
     write_audit_sheet(trace, pack, target / "audit-sheet.md")
     if trace.get("review"):
         write_review_report(trace, pack, target / "review-report.md")
+
+    if _review_archive_enabled(no_auto_review=no_auto_review):
+        archive_finalize_run(
+            trace,
+            pack,
+            out_dir=target,
+            trace_path=trace_path,
+            pack_path=pack_path,
+        )
+        assessment = assess_trace(trace, pack)
+        run_id = (trace.get("meta") or {}).get("run_id")
+        if run_id:
+            save_assessment(assessment, str(run_id))
+        if _holdings_snapshot_enabled():
+            save_holdings_snapshot(trace, pack)
+
     return 0, []

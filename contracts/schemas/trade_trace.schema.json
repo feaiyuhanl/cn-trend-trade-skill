@@ -47,6 +47,10 @@
       "items": { "$ref": "#/$defs/step" }
     },
     "market_filter": { "$ref": "#/$defs/market_filter" },
+    "theme_assessment": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
     "decisions": {
       "type": "object",
       "additionalProperties": { "$ref": "#/$defs/symbol_decision" }
@@ -122,7 +126,12 @@
           "enum": ["yes", "reduced", "no", "not_applicable"]
         },
         "reasoning_summary": { "type": "string" },
-        "confidence": { "type": "string", "enum": ["low", "medium", "high"] }
+        "confidence": { "type": "string", "enum": ["low", "medium", "high"] },
+        "sector_retreats": { "type": "array", "items": { "type": "object" } },
+        "sentiment_tier": { "type": "string" },
+        "limit_ratio": { "type": "number" },
+        "break_rate": { "type": "number" },
+        "max_lianban": { "type": "integer" }
       }
     },
     "symbol_decision": {
@@ -203,7 +212,19 @@
         },
         "discipline_violations": { "type": "array", "items": { "type": "string" } },
         "lessons": { "type": "array", "items": { "type": "string" } },
-        "next_improvements": { "type": "array", "items": { "type": "string" } }
+        "next_improvements": { "type": "array", "items": { "type": "string" } },
+        "skill_dimensions": {
+          "type": "object",
+          "description": "八维演进自评（可选；机检见 skill_assessment.json）",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "status": { "type": "string", "enum": ["ok", "warn", "gap", "na"] },
+              "reflection": { "type": "string" },
+              "action": { "type": "string" }
+            }
+          }
+        }
       }
     }
   }

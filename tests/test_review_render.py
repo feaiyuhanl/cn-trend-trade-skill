@@ -26,10 +26,19 @@ def test_review_report_renders():
         "phase_accuracy": "correct",
         "discipline_violations": [],
         "lessons": ["reduced 环境下控制加仓"],
-        "next_improvements": ["补齐 breadth 数据"],
+        "next_improvements": ["[EVIDENCE_TRACEABILITY] 补齐 breadth 数据"],
+        "skill_dimensions": {
+            "MF_PHASE_ENTRY": {
+                "status": "ok",
+                "reflection": "reduced 与 entry 一致",
+                "action": "维持",
+            }
+        },
     }
     enrich_trace(trace, pack)
     text = render_review_report(trace, pack)
     assert "阶段判断准确度" in text
     assert "correct" in text
     assert "reduced" in text
+    assert "SKILL 八维自评" in text
+    assert "MF_PHASE_ENTRY" in text

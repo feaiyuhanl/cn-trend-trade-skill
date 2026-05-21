@@ -39,8 +39,11 @@ Cursor：打开本目录，输入 `/trend-trade`。
 
 趋势强度 / 阶段 / 突破与回踩 / 仓位与出场 / 多指数大盘过滤 / 纪律 checklist / 复盘。
 
+**0.6.0 A 股特色**：题材生命周期与龙头传导、市场情绪（涨跌停/破板/连板）、事件风险（减持/财报/预告）、质量兜底（ST/常年亏损/黑名单）；`assemble` 自动 `enrich`。
+
 ## 版本
 
+- **0.6.0** — A 股四块能力贯通 enrich + 机检 + 八维复盘；见 [docs/PLAN_A_SHARE_FEATURES.md](docs/PLAN_A_SHARE_FEATURES.md)
 - **0.5.0** — 目录减法：`skill/` + `sample/` + 根 `SKILL.md`；删重复 lenses/schemas/templates
 - **0.4.0** — finalize、Jinja 报告、结构化 observations、adapters
 - **0.3.0** — fact_index、机检规则、enrich/render

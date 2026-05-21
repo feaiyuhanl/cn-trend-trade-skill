@@ -27,8 +27,16 @@
 {% else %}1. …
 {% endfor %}
 
+## SKILL 八维自评
+
+{% for d in skill_dimensions %}- **{{ d.id }}** · `{{ d.status }}`
+  {% if d.reflection %}- 反思：{{ d.reflection }}{% endif %}
+  {% if d.action %}- 行动：{{ d.action }}{% endif %}
+{% else %}- （可填 `trace.review.skill_dimensions`；机检见归档 `skill_assessment.json`）
+{% endfor %}
+
 ## 下一步改进
 
 {% for imp in improvements %}- {{ imp }}
-{% else %}- …
+{% else %}- 从 `cli.py --review` 八维评估的「→」行选取 3–5 条，保留 `[MF_PHASE_ENTRY]` 等前缀
 {% endfor %}

@@ -1,0 +1,7 @@
+# 自选手工风险标记（与 quality_gate 自动检测合并）
+version: "1.0.0"
+symbols: {}
+# 示例:
+#   000670.SZ:
+#     risk_flags: [chronic_loss, st_risk]
+#     note: 常年亏损，仅观察

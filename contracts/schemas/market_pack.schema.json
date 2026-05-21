@@ -48,6 +48,7 @@
       "type": ["array", "null"],
       "items": { "$ref": "#/$defs/breadth_snapshot" }
     },
+    "market_sentiment": { "$ref": "#/$defs/market_sentiment" },
     "fact_index": { "$ref": "#/$defs/fact_index" },
     "slots": { "$ref": "#/$defs/slots" }
   },
@@ -118,7 +119,15 @@
             "monthly": { "type": "array", "items": { "$ref": "#/$defs/bar" } }
           }
         },
-        "derived_hints": { "type": "object" }
+        "derived_hints": { "type": "object" },
+        "theme_meta": {
+          "type": "object",
+          "properties": {
+            "theme": { "type": "string" },
+            "role": { "type": "string" },
+            "label": { "type": "string" }
+          }
+        }
       }
     },
     "bar": {
@@ -171,6 +180,24 @@
         "entry_date": { "type": "string" },
         "stop_price": { "type": "number" },
         "notes": { "type": "string" }
+      }
+    },
+    "market_sentiment": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "trade_date": { "type": "string" },
+        "limit_up": { "type": ["integer", "null"] },
+        "limit_down": { "type": ["integer", "null"] },
+        "limit_ratio": { "type": ["number", "null"] },
+        "break_rate": { "type": ["number", "null"] },
+        "max_lianban": { "type": ["integer", "null"] },
+        "lianban_count": { "type": ["integer", "null"] },
+        "tier": { "type": "string" },
+        "entry_policy": { "type": "string" },
+        "hot_themes": { "type": "array" },
+        "lianban_stocks": { "type": "array" },
+        "source_id": { "type": "string" }
       }
     },
     "breadth_snapshot": {

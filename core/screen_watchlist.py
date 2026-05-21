@@ -58,11 +58,10 @@ def load_watchlist_config(watchlist_path: Path | None = None) -> dict[str, Any]:
 
 
 def build_theme_index(themes: dict[str, Any]) -> dict[str, str]:
-    idx: dict[str, str] = {}
-    for theme_id, body in themes.items():
-        for ts in body.get("ts_codes") or []:
-            idx[str(ts).strip().upper()] = theme_id
-    return idx
+    from core.theme_graph import build_theme_index as _tg_index
+
+    full = _tg_index(themes)
+    return {ts: v["theme"] for ts, v in full.items()}
 
 
 def holding_ts_codes(holdings: list[dict[str, Any]]) -> set[str]:
@@ -222,6 +221,51 @@ def apply_policy_row(
     return row
 
 
+def apply_pack_gates(row: dict[str, Any], pack: dict[str, Any]) -> dict[str, Any]:
+    """Quality / event / theme leader / sentiment gates from pack.slots."""
+    row = dict(row)
+    reasons: list[str] = list(row.get("downgrade_reasons") or [])
+    ts = row["ts_code"]
+    slots = pack.get("slots") or {}
+
+    qrec = (slots.get("quality_gate") or {}).get("symbols", {}).get(ts) or {}
+    if qrec.get("tier") == "block":
+        row["action"] = "avoid"
+        reasons.append("质量兜底:" + ",".join(qrec.get("risk_flags") or qrec.get("reasons") or ["block"]))
+        row["risk_flags"] = qrec.get("risk_flags") or []
+
+    erec = (slots.get("event_risk") or {}).get("symbols", {}).get(ts) or {}
+    if erec.get("block_entry"):
+        if row["action"] in ("watch_pool", "near_high_trim", "watch_pullback"):
+            row["action"] = "wait"
+        reasons.append("事件风险:" + ",".join(erec.get("event_flags") or []))
+
+    tid = row.get("theme")
+    for th in (slots.get("theme_context") or {}).get("themes") or []:
+        if th.get("theme_id") != tid:
+            continue
+        if th.get("leader_limit_down") or th.get("lifecycle_stage") == "retreat":
+            if row.get("theme_meta", {}).get("role") == "follower" and row["action"] in (
+                "watch_pool",
+                "near_high_trim",
+            ):
+                row["action"] = "wait"
+                reasons.append("龙头走弱/题材退潮")
+        break
+
+    sent = pack.get("market_sentiment") or {}
+    if sent.get("tier") == "frozen" and row["action"] in ("watch_pool", "near_high_trim"):
+        row["action"] = "wait"
+        reasons.append("市场情绪冰点")
+    if sent.get("tier") == "euphoric" and sent.get("break_rate", 0) >= 0.45:
+        if row["action"] == "watch_pool":
+            row["action"] = "wait"
+            reasons.append("亢奋期破板率高，不追涨")
+
+    row["downgrade_reasons"] = reasons
+    return row
+
+
 def detect_sector_retreat(
     rows: list[dict[str, Any]],
     theme_index: dict[str, str],
@@ -331,6 +375,7 @@ def run_screen(
     as_of = ""
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
     failed_batches: list[str] = []
+    last_pack: dict[str, Any] | None = None
 
     for i in range(0, len(symbols), batch_size):
         batch = symbols[i : i + batch_size]
@@ -350,6 +395,7 @@ def run_screen(
             failed_batches.append(f"{batch[0]}..{batch[-1]}: {last_err}")
             continue
 
+        last_pack = pack
         attach_fact_index(pack)
         as_of = (pack.get("meta") or {}).get("as_of") or as_of
         if i == 0 and pack.get("indices"):
@@ -364,6 +410,7 @@ def run_screen(
         for inst in pack.get("symbols", []):
             row = instrument_row_from_pack(inst, flat)
             tid = theme_index.get(row["ts_code"])
+            meta = (inst.get("theme_meta") or {})
             row = apply_policy_row(
                 row,
                 policy=policy,
@@ -371,6 +418,8 @@ def run_screen(
                 holdings_ts=holdings_ts,
                 holding_themes=holding_themes,
             )
+            row["theme_meta"] = meta
+            row = apply_pack_gates(row, pack)
             all_rows.append(row)
         time.sleep(sleep_sec)
 
@@ -408,6 +457,22 @@ def run_screen(
         "all_ranked": ranked,
         "holdings_ts": sorted(holdings_ts),
     }
+    if last_pack:
+        if last_pack.get("market_sentiment"):
+            result["market_sentiment"] = last_pack["market_sentiment"]
+        tc = (last_pack.get("slots") or {}).get("theme_context")
+        if tc:
+            result["theme_context"] = tc
+    result["risk_blocked"] = [
+        {
+            "ts_code": r["ts_code"],
+            "name": r.get("name"),
+            "risk_flags": r.get("risk_flags") or [],
+            "action": r["action"],
+        }
+        for r in ranked
+        if r.get("risk_flags") or r["action"] == "avoid"
+    ]
 
     out = out_dir or (_ROOT / ".trend-trade" / "tmp")
     out.mkdir(parents=True, exist_ok=True)
@@ -454,6 +519,8 @@ def render_screen_report(result: dict[str, Any]) -> str:
             f"- **{r['ts_code']}** {r['name']} · 分={r['score']} · 阶段={r['phase']} · "
             f"收={r.get('latest_close')} · MA20={r.get('ma20_value')} · {r.get('note')}"
         )
+        if r.get("risk_flags"):
+            lines.append(f"  - **风险**：{', '.join(r['risk_flags'])}")
         if r.get("downgrade_reasons"):
             lines.append(f"  - 降级：{'; '.join(r['downgrade_reasons'])}")
     lines.extend(["", "## 回踩观察 watch_pullback", ""])

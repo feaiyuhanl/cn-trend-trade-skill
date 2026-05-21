@@ -13,6 +13,11 @@
 | `STOP_RECORDED` | 止损与 `exit_plan` / 用户 `stop_price` 一致 |
 | `T1_LIMIT_AWARE` | T+1、涨跌停流动性 |
 | `POSITION_LIMITS` | 未超 portfolio 上限 |
+| `NO_JUNK_STOCK` | quality_gate 无 block 或已 wait |
+| `NO_ST_RISK` | 无 ST/造假黑历史 |
+| `EVENT_RISK_CLEAR` | event_risk 无 block_entry |
+| `THEME_LEADER_HEALTH` | 龙头未跌停/题材未 retreat 或已降仓 |
+| `SENTIMENT_AWARE` | 已读 market_sentiment |
 
 自定义项用 `CUSTOM_*` 前缀；`passed` 须与 `rules_engine` 结果一致（尤其 `MF_NO_AGGRESSIVE`）。
 

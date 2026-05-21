@@ -276,5 +276,43 @@
     ],
     "user_notes": ""
   },
-  "market_breadth": null
+  "market_breadth": [
+    {
+      "id": "breadth_fixture",
+      "trade_date": "20260519",
+      "advance": null,
+      "decline": null,
+      "limit_up": 42,
+      "limit_down": 18,
+      "source_id": "fixture"
+    }
+  ],
+  "market_sentiment": {
+    "id": "sentiment_fixture",
+    "trade_date": "20260519",
+    "limit_up": 42,
+    "limit_down": 18,
+    "limit_ratio": 2.33,
+    "break_rate": 0.28,
+    "max_lianban": 4,
+    "lianban_count": 6,
+    "tier": "normal",
+    "entry_policy": "yes",
+    "source_id": "fixture"
+  },
+  "slots": {
+    "theme_context": { "themes": [], "sector_retreats": [] },
+    "quality_gate": {
+      "symbols": {
+        "600519.SH": { "tier": "ok", "block_entry": false, "risk_flags": [] },
+        "300750.SZ": { "tier": "ok", "block_entry": false, "risk_flags": [] }
+      }
+    },
+    "event_risk": {
+      "symbols": {
+        "600519.SH": { "block_entry": false, "event_flags": [] },
+        "300750.SZ": { "block_entry": false, "event_flags": [] }
+      }
+    }
+  }
 }

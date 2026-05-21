@@ -1,0 +1,22 @@
+# 质量兜底（垃圾股/ST/常年亏损）
+version: "1.0.0"
+
+st:
+  block_st: true
+  block_star_st: true
+  name_patterns:
+    - "ST"
+    - "*ST"
+
+chronic_loss:
+  block: true
+  min_years_negative: 2
+  use_indicator: netprofit_yoy
+  # 扣非净利连续为负：用 fina_indicator 最近 N 期 net_profit
+
+blacklist_file: config/quality_blacklist.yaml
+
+tiers:
+  ok: 可纳入观察池/趋势评估
+  warn: 仅复盘，不开新仓
+  block: 禁止新开仓；自选筛选排除

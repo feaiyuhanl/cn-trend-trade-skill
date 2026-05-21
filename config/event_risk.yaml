@@ -1,0 +1,22 @@
+# 事件风险窗口（core/event_risk.py）
+version: "1.0.0"
+
+earnings:
+  blackout_days_before: 3
+  blackout_days_after: 1
+  block_entry_in_window: true
+
+reduction:
+  block_on_ann_within_days: 30
+  keywords:
+    - 减持
+    - 减持计划
+    - 预披露
+
+forecast:
+  block_types:
+    - 首亏
+    - 续亏
+    - 略减
+    - 预减
+  block_on_forecast_loss: true

@@ -96,6 +96,31 @@ machine_rules:
     description: framework/rationale/exit_plan 中数字须可对应 facts_used（否则用定性描述）
     check: framework_no_raw_numbers
 
+  - id: QUALITY_GATE_BLOCKS_ENTRY
+    severity: error
+    description: quality_gate tier=block 时无持仓标的不得 breakout/add
+    check: quality_gate_blocks_entry
+
+  - id: EVENT_RISK_BLOCKS_ENTRY
+    severity: error
+    description: event_risk block_entry 时无持仓标的不得 breakout/add
+    check: event_risk_blocks_entry
+
+  - id: LEADER_RETREAT_BLOCKS_FOLLOWER
+    severity: error
+    description: 题材龙头跌停或 lifecycle=retreat 时 follower 不得 breakout
+    check: leader_retreat_blocks_follower
+
+  - id: SENTIMENT_FROZEN_BLOCKS_ENTRY
+    severity: error
+    description: market_sentiment.tier=frozen 时 allow_new_trend_trade 不得为 yes
+    check: sentiment_frozen_blocks_entry
+
+  - id: SENTIMENT_EUPHORIC_BREAKOUT_NOTE
+    severity: warn
+    description: tier=euphoric 且 break_rate 高时 breakout 须在 rationale 说明缩仓/不追
+    check: sentiment_euphoric_breakout_note
+
 # Agent 填写的定性 checklist（可扩展；机检只验 rule_id 存在）
 discipline_registry:
   - id: MF_NO_AGGRESSIVE
@@ -116,6 +141,16 @@ discipline_registry:
     template: "观察池不等于买入推荐"
   - id: STALE_DATA_NO_ENTRY
     template: "行情 as_of 非当日则不做开仓决策"
+  - id: NO_JUNK_STOCK
+    template: "不碰垃圾股：ST/常年亏损/黑名单 tier=block 禁止新开仓"
+  - id: NO_ST_RISK
+    template: "有 ST 风险或财务造假黑历史坚决不碰"
+  - id: EVENT_RISK_CLEAR
+    template: "减持公告、财报窗口、业绩暴雷预警已检查且无阻断"
+  - id: THEME_LEADER_HEALTH
+    template: "跟风标的已对照题材龙头状态；龙头跌停/退潮不加仓"
+  - id: SENTIMENT_AWARE
+    template: "涨跌停比、破板率、连板情绪已纳入 market_filter / 开仓判断"
 
 observation_policy:
   # 观测句若含数字但无法匹配 evidence，须带此前缀（否则 validate 失败）
