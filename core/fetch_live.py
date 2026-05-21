@@ -31,14 +31,105 @@ def _get_pro():
     return ts.pro_api()
 
 
+def _latest_expected_trade_date() -> datetime:
+    """Latest A-share session we expect a daily bar for (close 15:00)."""
+    now = datetime.now()
+    if now.hour < 15:
+        now = now - timedelta(days=1)
+    while now.weekday() >= 5:
+        now = now - timedelta(days=1)
+    return now
+
+
 def _end_start_dates(lookback_daily: int) -> tuple[str, str]:
-    end = datetime.now()
-    if end.hour < 16:
-        end = end - timedelta(days=1)
-    while end.weekday() >= 5:
-        end = end - timedelta(days=1)
+    end = _latest_expected_trade_date()
     start = end - timedelta(days=int(lookback_daily * 1.6))
     return start.strftime("%Y%m%d"), end.strftime("%Y%m%d")
+
+
+def _ak_symbol(ts_code: str) -> str:
+    return ts_code.split(".")[0]
+
+
+def _fetch_daily_akshare(ts_code: str, start: str, end: str, *, is_index: bool) -> pd.DataFrame:
+    try:
+        import akshare as ak
+    except ImportError:
+        return pd.DataFrame()
+    sym = _ak_symbol(ts_code)
+    try:
+        if is_index:
+            sdf = f"{start[:4]}-{start[4:6]}-{start[6:8]}"
+            edf = f"{end[:4]}-{end[4:6]}-{end[6:8]}"
+            raw = ak.index_zh_a_hist(
+                symbol=sym, period="daily", start_date=sdf, end_date=edf
+            )
+        else:
+            raw = ak.stock_zh_a_hist(
+                symbol=sym,
+                period="daily",
+                start_date=start,
+                end_date=end,
+                adjust="",
+            )
+    except Exception as e:
+        _FETCH_MESSAGES.append(f"akshare {ts_code}: {e}")
+        return pd.DataFrame()
+    if raw is None or raw.empty:
+        return pd.DataFrame()
+    rename = {
+        "日期": "trade_date",
+        "开盘": "open",
+        "收盘": "close",
+        "最高": "high",
+        "最低": "low",
+        "成交量": "vol",
+        "成交额": "amount",
+        "涨跌幅": "pct_chg",
+    }
+    df = raw.rename(columns={k: v for k, v in rename.items() if k in raw.columns})
+    if "trade_date" not in df.columns:
+        return pd.DataFrame()
+    df["trade_date"] = pd.to_datetime(df["trade_date"]).dt.strftime("%Y%m%d")
+    for col in ("open", "high", "low", "close", "pct_chg", "vol", "amount"):
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+    return df.sort_values("trade_date").reset_index(drop=True)
+
+
+def _merge_daily_supplement(
+    ts_df: pd.DataFrame,
+    ts_code: str,
+    start: str,
+    end: str,
+    *,
+    is_index: bool,
+) -> pd.DataFrame:
+    """Append missing sessions when Tushare lags (same-day bar via akshare)."""
+    if ts_df is None or ts_df.empty:
+        ak_df = _fetch_daily_akshare(ts_code, start, end, is_index=is_index)
+        if not ak_df.empty:
+            _status("akshare_supplement", "ok")
+        return ak_df
+    latest = str(ts_df["trade_date"].max())
+    if latest >= end:
+        return ts_df
+    ak_df = _fetch_daily_akshare(ts_code, latest, end, is_index=is_index)
+    if ak_df.empty:
+        _FETCH_MESSAGES.append(
+            f"akshare supplement empty for {ts_code} (tushare through {latest}, want {end})"
+        )
+        return ts_df
+    combined = (
+        pd.concat([ts_df, ak_df], ignore_index=True)
+        .drop_duplicates(subset=["trade_date"], keep="last")
+        .sort_values("trade_date")
+    )
+    _status("akshare_supplement", "ok")
+    _FETCH_MESSAGES.append(
+        f"akshare supplemented {ts_code}: {latest} -> {combined['trade_date'].max()}"
+    )
+    return combined
 
 
 def _df_to_bars(df: pd.DataFrame, ts_code: str, tf: str, source_id: str = "tushare") -> list[dict[str, Any]]:
@@ -132,6 +223,9 @@ def _fetch_instrument(
     start, end = _end_start_dates(lookback.get("daily", 120))
     try:
         daily_df = _fetch_daily(pro, ts_code, start, end, is_index=is_index)
+        daily_df = _merge_daily_supplement(
+            daily_df, ts_code, start, end, is_index=is_index
+        )
     except Exception as e:
         _FETCH_MESSAGES.append(f"{ts_code} daily fail: {e}")
         return None

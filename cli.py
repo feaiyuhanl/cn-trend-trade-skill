@@ -20,6 +20,9 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from core.assemble import OUT_PACK, OUT_TRACE, assemble, copy_fixture_trace, save_trace  # noqa: E402
+from core.init_trace import init_trace_from_pack  # noqa: E402
+from core.pack_inspect import dispatch_show_pack  # noqa: E402
+from core.trace_merge import merge_decisions  # noqa: E402
 from core.journal import list_journal_dates, load_journal, save_journal  # noqa: E402
 from core.enrich_trace import enrich_trace  # noqa: E402
 from core.pipeline import finalize_trace  # noqa: E402
@@ -37,6 +40,7 @@ from core.recommendation_log import (  # noqa: E402
 from core.review_brief import build_review_brief  # noqa: E402
 from core.rules_engine import load_rules_config  # noqa: E402
 from core.screen_watchlist import run_screen  # noqa: E402
+from core.watchlist_risk_audit import run_audit as run_watchlist_risk_audit  # noqa: E402
 from core.validate import (  # noqa: E402
     load_json,
     validate_market_pack,
@@ -165,6 +169,31 @@ def cmd_finalize(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_audit_watchlist(args: argparse.Namespace) -> int:
+    symbols = [s.strip() for s in args.symbols.split(",")] if args.symbols else None
+    try:
+        result = run_watchlist_risk_audit(
+            symbols=symbols,
+            watchlist_path=Path(args.watchlist) if args.watchlist else None,
+            live=not args.fixture,
+            out_dir=Path(args.out_dir) if args.out_dir else None,
+            archive=not args.no_archive,
+        )
+    except RuntimeError as e:
+        print(f"FAIL {e}", file=sys.stderr)
+        return 1
+    paths = result.get("_paths", {})
+    summary = result.get("summary") or {}
+    print(f"OK audit {result['meta']['symbols']} as_of={result['meta'].get('as_of')}")
+    print(
+        f"  block={summary.get('block', 0)} high={summary.get('high', 0)} "
+        f"warn={summary.get('warn', 0)} concept={summary.get('concept', 0)}"
+    )
+    print(f"  json -> {paths.get('json')}")
+    print(f"  report -> {paths.get('report')}")
+    return 0
+
+
 def cmd_screen_watchlist(args: argparse.Namespace) -> int:
     symbols = [s.strip() for s in args.symbols.split(",")] if args.symbols else None
     try:
@@ -279,6 +308,60 @@ def cmd_status(_args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_show_pack(args: argparse.Namespace) -> int:
+    pack = load_json(Path(args.pack))
+    try:
+        text = dispatch_show_pack(pack, args.show_pack, ts_code=args.ts_code)
+    except ValueError as e:
+        print(f"FAIL {e}", file=sys.stderr)
+        return 1
+    print(text, end="" if text.endswith("\n") else "\n")
+    return 0
+
+
+def cmd_init_trace(args: argparse.Namespace) -> int:
+    pack = load_json(Path(args.pack))
+    if args.from_sample:
+        trace = load_json(_ROOT / "sample" / "trade_trace.sample.json")
+        trace.setdefault("meta", {})["run_id"] = (pack.get("meta") or {}).get("run_id")
+        trace["meta"]["session_mode"] = (pack.get("user_context") or {}).get(
+            "session_mode"
+        ) or trace["meta"].get("session_mode")
+    else:
+        trace = init_trace_from_pack(pack, playbook=args.playbook or "full-analysis")
+    out = Path(args.out) if args.out else OUT_TRACE
+    save_trace(trace, out)
+    print(f"OK trade_trace scaffold -> {out}")
+    print(f"  symbols: {len(trace.get('decisions') or {})}")
+    print(f"  lenses: {len(trace.get('meta', {}).get('lenses_applied') or [])}")
+    return 0
+
+
+def _load_patch_json(path: str | None) -> dict:
+    if path in (None, "-"):
+        raw = sys.stdin.read()
+    else:
+        raw = Path(path).read_text(encoding="utf-8")
+    data = json.loads(raw)
+    if not isinstance(data, dict):
+        raise ValueError("patch must be a JSON object")
+    return data
+
+
+def cmd_patch_trace(args: argparse.Namespace) -> int:
+    trace_path = Path(args.patch_trace)
+    trace = load_json(trace_path)
+    try:
+        patch = _load_patch_json(args.patch)
+    except (json.JSONDecodeError, ValueError) as e:
+        print(f"FAIL {e}", file=sys.stderr)
+        return 1
+    merged = merge_decisions(trace, patch)
+    save_trace(merged, trace_path)
+    print(f"OK patched trace -> {trace_path}")
+    return 0
+
+
 def cmd_list_indices(args: argparse.Namespace) -> int:
     if yaml is None:
         print("Install PyYAML: pip install -r requirements.txt", file=sys.stderr)
@@ -310,6 +393,32 @@ def main() -> int:
     parser.add_argument("--indices-profile", default="comprehensive")
     parser.add_argument("--run-id", help="覆盖 run_id")
     parser.add_argument("--copy-trace", action="store_true", help="复制 sample trace")
+    parser.add_argument(
+        "--show-pack",
+        metavar="SECTION",
+        help="打印 pack 摘要：holdings | symbols | facts（需 --pack）",
+    )
+    parser.add_argument("--ts-code", help="配合 --show-pack facts：过滤单标的")
+    parser.add_argument(
+        "--init-trace",
+        action="store_true",
+        help="从 market_pack 生成 trade_trace 骨架（需 --pack）",
+    )
+    parser.add_argument(
+        "--from-sample",
+        action="store_true",
+        help="配合 --init-trace：以 sample trace 为模板并覆盖 run_id",
+    )
+    parser.add_argument("--playbook", help="配合 --init-trace：playbook 名")
+    parser.add_argument(
+        "--patch-trace",
+        metavar="TRACE",
+        help="深度合并 JSON patch 到 trace（--patch FILE 或 - 表示 stdin）",
+    )
+    parser.add_argument(
+        "--patch",
+        help="配合 --patch-trace：patch JSON 文件路径，- 为 stdin",
+    )
     parser.add_argument("--validate-pack", nargs="?", const=str(OUT_PACK), metavar="PATH")
     parser.add_argument("--validate-trace", metavar="PATH")
     parser.add_argument("--pack", help="与 --validate-trace / --enrich-trace / --render-report 联用")
@@ -338,8 +447,18 @@ def main() -> int:
         action="store_true",
         help="自选趋势观察池筛选（非买入推荐，见 watchlist-screen playbook）",
     )
-    parser.add_argument("--watchlist", default="config/watchlist.yaml", help="配合 --screen-watchlist")
+    parser.add_argument("--watchlist", default="config/watchlist.yaml", help="配合 --screen-watchlist / --audit-watchlist")
     parser.add_argument("--max", type=int, help="配合 --screen-watchlist：最多扫描只数")
+    parser.add_argument(
+        "--audit-watchlist",
+        action="store_true",
+        help="自选风险审计（垃圾股/ST/业绩预警/题材嫌疑，见 watchlist-risk-audit playbook）",
+    )
+    parser.add_argument(
+        "--no-archive",
+        action="store_true",
+        help="配合 --audit-watchlist：不复制到 .trend-trade/archive/",
+    )
     parser.add_argument("--save-journal", metavar="FILE", help="保存复盘日记 JSON 条目")
     parser.add_argument("--journal-date", help="YYYYMMDD，配合 --save-journal")
     parser.add_argument("--list-journal", action="store_true", help="列出日记日期")
@@ -433,6 +552,23 @@ def main() -> int:
         return cmd_list_rules(args)
     if args.screen_watchlist:
         return cmd_screen_watchlist(args)
+    if args.audit_watchlist:
+        return cmd_audit_watchlist(args)
+    if args.show_pack:
+        if not args.pack:
+            print("--show-pack requires --pack", file=sys.stderr)
+            return 1
+        return cmd_show_pack(args)
+    if args.init_trace:
+        if not args.pack:
+            print("--init-trace requires --pack", file=sys.stderr)
+            return 1
+        return cmd_init_trace(args)
+    if args.patch_trace:
+        if not args.patch:
+            print("--patch-trace requires --patch FILE (or - for stdin)", file=sys.stderr)
+            return 1
+        return cmd_patch_trace(args)
 
     parser.print_help()
     return 0

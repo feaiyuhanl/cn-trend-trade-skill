@@ -22,7 +22,9 @@ intake → assemble → (Agent 写 trade_trace) → finalize
 
 ```bash
 python cli.py --assemble --symbols 600519.SH --session-mode new_entry
-# … Agent 按 skill/playbooks/full-analysis.md + skill/lenses/* 写 trace …
+python cli.py --init-trace --pack .trend-trade/tmp/market_pack.json
+python cli.py --show-pack holdings --pack .trend-trade/tmp/market_pack.json
+# … Agent 用 --patch-trace 合并 JSON（Shell stdin），勿 Write 工具 …
 python cli.py --finalize .trend-trade/tmp/trade_trace.json \
   --pack .trend-trade/tmp/market_pack.json --out-dir .trend-trade/tmp
 ```
@@ -39,6 +41,7 @@ python cli.py --finalize .trend-trade/tmp/trade_trace.json \
 | [playbooks/exit-check.md](playbooks/exit-check.md) | 仅持仓 |
 | [playbooks/review-session.md](playbooks/review-session.md) | 复盘（`cli.py --review` + 归档推荐） |
 | [playbooks/watchlist-screen.md](playbooks/watchlist-screen.md) | 自选观察池（非荐股） |
+| [playbooks/watchlist-risk-audit.md](playbooks/watchlist-risk-audit.md) | 自选风险/垃圾股审计 |
 
 ### Lenses（按序 · 完整分析）
 

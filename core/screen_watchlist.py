@@ -529,6 +529,16 @@ def render_screen_report(result: dict[str, Any]) -> str:
     lines.extend(["", "## 近前高 near_high_trim（不追涨）", ""])
     for r in result.get("near_high_trim") or []:
         lines.append(f"- **{r['ts_code']}** {r['name']} · {r.get('note')}")
+    risk_blocked = [
+        r for r in (result.get("risk_blocked") or []) if r.get("risk_flags")
+    ]
+    if risk_blocked:
+        lines.extend(["", "## 风险标的（quality / event）", ""])
+        for r in risk_blocked[:30]:
+            flags = ", ".join(r.get("risk_flags") or [])
+            lines.append(f"- **{r['ts_code']}** {r.get('name', '')} · {flags} · action={r.get('action')}")
+        if len(risk_blocked) > 30:
+            lines.append(f"- … 另有 {len(risk_blocked) - 30} 只，见 watchlist_screen.json")
     lines.extend(
         [
             "",

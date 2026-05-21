@@ -14,6 +14,7 @@ description: A-share trend trading analysis for user-specified stocks (no screen
 | 完整分析 | [full-analysis.md](skill/playbooks/full-analysis.md) | 指定标的深度趋势分析 |
 | 持仓快检 | [exit-check.md](skill/playbooks/exit-check.md) | 已有仓位加减仓/止损 |
 | 自选观察池 | [watchlist-screen.md](skill/playbooks/watchlist-screen.md) | 从 watchlist 筛 **观察池**（**非买入推荐**） |
+| 自选风险审计 | [watchlist-risk-audit.md](skill/playbooks/watchlist-risk-audit.md) | 垃圾股/ST/业绩预警/题材嫌疑（**一条 CLI**） |
 | 复盘 | [review-session.md](skill/playbooks/review-session.md) | 计划 vs 实际；历次推荐已归档 |
 
 ## 复盘触发（对话）
@@ -44,13 +45,31 @@ description: A-share trend trading analysis for user-specified stocks (no screen
 | `audit-sheet.md` | 事实审计 |
 | `review-report.md` | 有 `trace.review` 时 |
 | `screen_report.md` | `--screen-watchlist` 观察池报告 |
+| `watchlist_risk_report.md` | `--audit-watchlist` 风险审计（禁表格排版） |
 
 工作目录：`.trend-trade/tmp/` · 推荐归档：`.trend-trade/recommendations/{run_id}/` · 观察池归档：`.trend-trade/archive/{run_id}/`
 
 ## 对话 / 报告排版
 
-- **禁止 Markdown 表格**（Cursor 聊天里易挤成一行）；用「标题 + 无序列表」
+- **禁止 Markdown 表格**（Cursor 聊天里 `| a | b |` 会挤成一行乱码）；用「`##` 标题 + `-` 列表」
+- 每条标的单行：`- **600519.SH 贵州茅台**：续亏，市值约 2.1 万亿，见报告第二档`
 - 数字用 `- **标签**：值`；操作计划用分条列出，勿整段 JSON
+- 超过 8 只同类标的：列代表性 3～8 只 +「其余见 `watchlist_risk_report.md`」
+
+## Agent 执行（免 Accept：禁止文件编辑工具）
+
+Cursor 里对仓库文件的 **Write / StrReplace** 会弹出 Accept/Skip，打断流程。本 Skill 要求 Agent **只用 Shell + 登记 CLI** 写盘。
+
+用户未要求「边看边分析」时：
+
+1. **禁止** `Write`、`StrReplace`、`EditNotebook`（含 `_extract_*.py`、`_tmp_*.py`、临时 notebook）
+2. **禁止**多轮「先拉行情 → 再逐只查 → 再总结」；改用登记 CLI **一次跑完**
+3. 读 pack / 持仓 / facts → `python cli.py --show-pack holdings|symbols|facts --pack .trend-trade/tmp/market_pack.json`
+4. 写 trace → `python cli.py --init-trace --pack ...` 后 `python cli.py --patch-trace ... --patch -`（stdin JSON），再 `--finalize`
+5. **自选风险 / 垃圾股** → 仅 `--audit-watchlist`；**自选观察池** → 仅 `--screen-watchlist`；读报告后 **一次回复**
+6. 中间步骤不对话、**不等待 Accept**；仅当 CLI 失败或缺 `TUSHARE_TOKEN` 时说明缺口
+
+规则文件：`.cursor/rules/agent-exec-via-cli.mdc`
 
 ## 铁律
 
@@ -69,6 +88,11 @@ description: A-share trend trading analysis for user-specified stocks (no screen
 python cli.py --assemble --symbols 600519.SH,300750.SZ \
   --session-mode mixed --positions-file sample/positions_holdings.json
 
+# trace 骨架 + 合并 patch（Agent 用 Shell，勿 Write 工具）
+python cli.py --init-trace --pack .trend-trade/tmp/market_pack.json
+python cli.py --show-pack holdings --pack .trend-trade/tmp/market_pack.json
+python cli.py --patch-trace .trend-trade/tmp/trade_trace.json --patch patch.json
+
 # 分析后
 python cli.py --finalize .trend-trade/tmp/trade_trace.json \
   --pack .trend-trade/tmp/market_pack.json --out-dir .trend-trade/tmp
@@ -77,6 +101,9 @@ python cli.py --list-rules
 
 # 自选观察池（非荐股）
 python cli.py --screen-watchlist --max 30
+
+# 自选风险审计（垃圾股/ST/业绩预警）
+python cli.py --audit-watchlist
 python cli.py --assemble --symbols 601016.SH,000591.SZ \
   --session-mode holdings_review --positions-file sample/positions_user_holdings.json
 

@@ -1,0 +1,35 @@
+---
+description: cn-trend-trade-skill Agent 禁止 Write/StrReplace，一律 Shell+CLI，避免 Accept 打断
+globs: cn-trend-trade-skill/**
+alwaysApply: false
+---
+
+# Agent 执行：禁止文件编辑工具
+
+在本 Skill 仓库内执行 `@cn-trend-trade-skill` / `/trend-trade` 时：
+
+## 禁止
+
+- **禁止**使用 `Write`、`StrReplace`、`EditNotebook` 创建或修改任何文件（含 `_extract_*.py`、`_tmp_*.py`、临时 notebook）
+- **禁止**为读 `market_pack.json` / 持仓而新建 Python 脚本
+
+## 必须
+
+| 需求 | 命令 |
+|------|------|
+| 看持仓/成本 | `python cli.py --show-pack holdings --pack .trend-trade/tmp/market_pack.json` |
+| 看标的列表 | `python cli.py --show-pack symbols --pack ...` |
+| 看 fact_index | `python cli.py --show-pack facts --pack ... [--ts-code 600519.SH]` |
+| 生成 trace 骨架 | `python cli.py --init-trace --pack ...` 或 `--init-trace --from-sample --pack ...` |
+| 写入 trace 内容 | `python cli.py --patch-trace .trend-trade/tmp/trade_trace.json --patch -`（stdin JSON） |
+| 机检/报告 | `python cli.py --finalize ... --pack ...` |
+| 自选风险/观察池 | 仅 `--audit-watchlist` / `--screen-watchlist` |
+
+读已有报告用 **Read** 工具即可，无需 Accept。
+
+## 流程
+
+1. 一条 `assemble` / `screen` / `audit` CLI
+2. 需要 trace 时：`--init-trace` → Shell 合并 patch → `--finalize`
+3. **中间不对话**；CLI 失败再说明缺口
+4. 读完 `report.md` / `screen_report.md` 后 **一次回复**用户

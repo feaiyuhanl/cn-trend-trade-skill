@@ -66,18 +66,30 @@ def _fetch_basic_map(pro, ts_codes: list[str]) -> dict[str, dict[str, Any]]:
     return out
 
 
-def _fetch_fina_loss_years(pro, ts_code: str, years: int = 3) -> int:
-    """Count recent periods with net_profit < 0."""
+def _net_profit_from_row(row) -> float | None:
     import pandas as pd
 
+    for key in ("net_profit", "netprofit", "n_income_attr_p", "n_income"):
+        v = row.get(key)
+        if v is None or (hasattr(pd, "isna") and pd.isna(v)):
+            continue
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def _fetch_fina_loss_years(pro, ts_code: str, years: int = 3) -> int:
+    """Count recent periods with net profit < 0."""
     try:
         df = pro.fina_indicator(ts_code=ts_code, limit=years * 4)
         if df is None or df.empty:
             return 0
         neg = 0
         for _, row in df.iterrows():
-            np_val = row.get("net_profit")
-            if np_val is not None and not pd.isna(np_val) and float(np_val) < 0:
+            np_val = _net_profit_from_row(row)
+            if np_val is not None and np_val < 0:
                 neg += 1
         return neg
     except Exception:

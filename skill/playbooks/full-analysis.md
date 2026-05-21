@@ -4,7 +4,10 @@
 
 1. 完成 [intake.md](intake.md)
 2. `python cli.py --assemble --symbols ... [--positions-file ...] [--session-mode ...]`
-3. 阅读 [reference/evidence-policy.md](../reference/evidence-policy.md)
+3. `python cli.py --init-trace --pack .trend-trade/tmp/market_pack.json`（或 `--init-trace --from-sample`）
+4. 阅读 [reference/evidence-policy.md](../reference/evidence-policy.md)
+
+**Agent**：用 `cli.py --show-pack` 读持仓与 facts；用 `--patch-trace` 写 trace。**禁止** Write/StrReplace 与 `_extract_*.py`。
 
 ## 步骤
 

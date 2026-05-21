@@ -22,6 +22,7 @@
 - Playbook：`skill/playbooks/watchlist-screen.md`
 - 配置：`config/watchlist.yaml` → `screening_policy`，`config/themes.yaml`
 - 命令：`python cli.py --screen-watchlist [--max N]`
+- 风险审计：`python cli.py --audit-watchlist` → `core/watchlist_risk_audit.py`
 - 逻辑：`core/screen_watchlist.py`（勿新增未登记临时脚本）
 
 ## 本地检查

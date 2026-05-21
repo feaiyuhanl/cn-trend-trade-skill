@@ -41,6 +41,11 @@
 - 使用未登记的临时 `_*.py` 脚本输出最终结论
 - 在文案中使用「优先推荐」「买入」等词（见 `forbid_output_words`）
 - 对 `risk_flags` 标的隐瞒风险
+- 多轮中间分析让用户点 Accept；应 **一条** `--screen-watchlist` 后读 `screen_report.md` 再回复
+
+## 自选风险 / 垃圾股
+
+走 [watchlist-risk-audit.md](watchlist-risk-audit.md)（`--audit-watchlist`），不要在本 playbook 里手搓表格。
 
 ## 相关
 
