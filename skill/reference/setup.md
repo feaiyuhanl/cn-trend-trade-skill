@@ -8,7 +8,18 @@ pip install -r requirements.txt
 
 ## Tushare（实盘）
 
-当日 K 线：Tushare 常滞后 1 个交易日；`fetch_live` 在缺失时会用 **akshare** 补全至最近 A 股收盘日（见 `requirements.txt`）。
+### 休盘后几分钟为何还是昨天收盘？
+
+**常见原因：外部数据源尚未刷新，不是本 Skill 交易日算错。**
+
+| 来源 | 典型情况 |
+|------|----------|
+| **Tushare Pro** | 日线 `daily` / `index_daily` 常在收盘后 **30 分钟～数小时** 才入库；15:05 立刻跑可能仍只有上一交易日。 |
+| **akshare** | 用于在 Tushare 缺 bar 时**补当日 K 线**；若接口尚未更新或网络中断，补数为空，程序会标 `data_stale`。 |
+
+程序逻辑：15:05 后起认为「应使用当日」`expected_trade_date`；若 K 线最大 `trade_date` 仍小于该日 → **`data_stale`**，报告/CLI 提示 **稍后重试**（建议 15:30–17:00，仍不行则 18:00 后或次日开盘前）。
+
+当日 K 线拉取：`fetch_live` 先 Tushare，缺失再 akshare（见 `requirements.txt`）。
 
 1. 注册 [Tushare Pro](https://tushare.pro/) 获取 Token
 2. 设置环境变量：

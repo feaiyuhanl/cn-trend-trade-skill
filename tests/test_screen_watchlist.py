@@ -18,7 +18,7 @@ def test_load_config_has_policy():
     cfg = load_watchlist_config()
     assert cfg["symbols_flat"]
     assert cfg["policy"]["max_per_theme"] == 2
-    assert "green_power" in cfg["themes"]
+    assert "BK0427.DC" in cfg["themes"]
 
 
 def test_1d_drop_downgrades_watch_pool():

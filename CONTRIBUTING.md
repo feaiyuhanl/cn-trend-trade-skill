@@ -9,6 +9,7 @@
 - 指数列表：`config/indices.yaml`
 - 适配器注册：`adapters/registry.yaml`
 - 行情拉取：`adapters/tushare_market.py`（委托 `core/fetch_live.py`）
+- **交易日统一**：`core/trade_date_util.py`（`trade_date` vs `as_of`；休盘后 15:05 切日；勿在各模块写 `hour < 16`）
 - 衍生指标：`core/hints.py`（仅数字，不含买卖信号）
 
 ## 改报告

@@ -11,13 +11,16 @@ def _pack_follower_retreat():
         "user_context": {"session_mode": "new_entry", "positions": []},
         "slots": {
             "theme_context": {
+                "theme_index": {
+                    "601016.SH": {"theme": "BK0427.DC", "role": "follower"},
+                },
                 "themes": [
                     {
-                        "theme_id": "green_power",
+                        "theme_id": "BK0427.DC",
                         "lifecycle_stage": "retreat",
                         "leader_limit_down": True,
                     }
-                ]
+                ],
             },
             "quality_gate": {
                 "symbols": {

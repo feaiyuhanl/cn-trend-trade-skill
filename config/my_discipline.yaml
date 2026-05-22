@@ -9,13 +9,13 @@ portfolio:
 holdings:
   - ts_code: 601016.SH
     name: 节能风电
-    theme: green_power
+    theme: BK0427.DC
   - ts_code: 000591.SZ
     name: 太阳能
-    theme: green_power
+    theme: BK0427.DC
   - ts_code: 000997.SZ
     name: 新大陆
-    theme: fintech
+    theme: BK0556.DC
 
 rules:
   - id: NO_CHASE_ON_SECTOR_RED_DAY

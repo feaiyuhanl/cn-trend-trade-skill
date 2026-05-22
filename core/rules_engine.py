@@ -336,9 +336,13 @@ def _check_event_blocks_entry(
 def _check_leader_retreat_blocks_follower(
     pack: dict[str, Any], trace: dict[str, Any], _profile: dict[str, Any]
 ) -> list[str]:
-    tc = (pack.get("slots") or {}).get("theme_context") or {}
+    slots = pack.get("slots") or {}
+    tc = slots.get("theme_context") or {}
     theme_by_id = {t["theme_id"]: t for t in tc.get("themes") or []}
-    idx = build_theme_index(load_themes_config().get("themes") or {})
+    resolution = slots.get("theme_resolution")
+    idx = tc.get("theme_index") or (resolution or {}).get("theme_index")
+    if not idx:
+        idx = build_theme_index(load_themes_config().get("themes") or {}, resolution)
     held = _position_ts_codes(pack)
     msgs: list[str] = []
     for ts_code, dec in (trace.get("decisions") or {}).items():

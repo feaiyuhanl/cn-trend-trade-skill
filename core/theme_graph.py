@@ -23,7 +23,7 @@ def load_themes_config(path: Path | None = None) -> dict[str, Any]:
 
 
 def parse_theme_members(theme_id: str, body: dict[str, Any]) -> list[dict[str, Any]]:
-    """Normalize theme body to [{ts_code, name, role}, ...]."""
+    """Legacy v1: leaders/members in yaml. v2 themes have no static members."""
     out: list[dict[str, Any]] = []
     leaders = body.get("leaders") or []
     for ld in leaders:
@@ -50,7 +50,6 @@ def parse_theme_members(theme_id: str, body: dict[str, Any]) -> list[dict[str, A
                     "role": m.get("role") or "follower",
                 }
             )
-    # dedupe: leader wins
     seen: dict[str, dict[str, Any]] = {}
     for row in out:
         ts = row["ts_code"]
@@ -59,8 +58,13 @@ def parse_theme_members(theme_id: str, body: dict[str, Any]) -> list[dict[str, A
     return list(seen.values())
 
 
-def build_theme_index(themes: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    """ts_code -> {theme, role, label}."""
+def build_theme_index(
+    themes: dict[str, Any],
+    resolution: dict[str, Any] | None = None,
+) -> dict[str, dict[str, Any]]:
+    """ts_code -> {theme, role, label}. Prefer runtime theme_resolution."""
+    if resolution and resolution.get("theme_index"):
+        return dict(resolution["theme_index"])
     idx: dict[str, dict[str, Any]] = {}
     for theme_id, body in (themes or {}).items():
         if not isinstance(body, dict):
@@ -77,8 +81,20 @@ def build_theme_index(themes: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return idx
 
 
-def leader_codes_for_themes(themes: dict[str, Any], theme_ids: set[str]) -> list[str]:
-    codes: list[str] = []
+def leader_codes_for_themes(
+    themes: dict[str, Any],
+    theme_ids: set[str],
+    resolution: dict[str, Any] | None = None,
+) -> list[str]:
+    if resolution:
+        codes: list[str] = []
+        for tid in theme_ids:
+            tdata = (resolution.get("themes") or {}).get(tid) or {}
+            leader = tdata.get("leader_ts_code")
+            if leader:
+                codes.append(str(leader).strip().upper())
+        return sorted(set(codes))
+    codes = []
     for tid in theme_ids:
         body = themes.get(tid) or {}
         for row in parse_theme_members(tid, body):
@@ -129,15 +145,14 @@ def _infer_lifecycle(
     return "divergence"
 
 
-def assess_theme(
+def assess_theme_from_members(
     theme_id: str,
-    body: dict[str, Any],
-    pack: dict[str, Any],
+    label: str,
+    members: list[dict[str, Any]],
     pct_map: dict[str, float | None],
 ) -> dict[str, Any]:
-    members = parse_theme_members(theme_id, body)
-    leader_rows = [m for m in members if m["role"] == "leader"]
-    follower_rows = [m for m in members if m["role"] != "leader"]
+    leader_rows = [m for m in members if m.get("role") == "leader"]
+    follower_rows = [m for m in members if m.get("role") != "leader"]
 
     leader_stats: list[dict[str, Any]] = []
     for ld in leader_rows:
@@ -149,6 +164,8 @@ def assess_theme(
                 "name": ld.get("name") or ts,
                 "pct_chg_1d": pct,
                 "limit_down": _is_limit_down(pct, ts),
+                "lianban": ld.get("lianban"),
+                "leader_source": ld.get("source", "spec_lead"),
             }
         )
 
@@ -178,9 +195,7 @@ def assess_theme(
         up_frac=up_frac,
     )
 
-    # 板块强度：主题内样本中位涨幅分位（相对本 pack 内所有主题）
     strength_score = median_pct
-
     allow = "yes"
     if stage == "retreat" or leader_limit_down:
         allow = "no"
@@ -189,7 +204,7 @@ def assess_theme(
 
     return {
         "theme_id": theme_id,
-        "label": body.get("label", theme_id),
+        "label": label,
         "lifecycle_stage": stage,
         "allow_new_trend_trade": allow,
         "leaders": leader_stats,
@@ -203,27 +218,54 @@ def assess_theme(
     }
 
 
+def assess_theme(
+    theme_id: str,
+    body: dict[str, Any],
+    pack: dict[str, Any],
+    pct_map: dict[str, float | None],
+) -> dict[str, Any]:
+    members = parse_theme_members(theme_id, body)
+    return assess_theme_from_members(theme_id, body.get("label", theme_id), members, pct_map)
+
+
 def build_theme_context(pack: dict[str, Any], themes_cfg: dict[str, Any] | None = None) -> dict[str, Any]:
     cfg = themes_cfg or load_themes_config()
     themes = cfg.get("themes") or {}
     pct_map = _symbol_pct_map(pack)
-    theme_index = build_theme_index(themes)
+    resolution = (pack.get("slots") or {}).get("theme_resolution")
+    theme_index = build_theme_index(themes, resolution)
 
     assessments: list[dict[str, Any]] = []
-    for theme_id, body in themes.items():
-        if not isinstance(body, dict):
-            continue
-        # 仅评估 pack 中至少有一个样本的主题
-        member_codes = [m["ts_code"] for m in parse_theme_members(theme_id, body)]
-        if not any(c in pct_map for c in member_codes):
-            continue
-        assessments.append(assess_theme(theme_id, body, pack, pct_map))
+    if resolution and resolution.get("themes"):
+        for theme_id, tdata in resolution["themes"].items():
+            members = tdata.get("members") or []
+            if not any(m["ts_code"] in pct_map for m in members):
+                continue
+            for m in members:
+                if m.get("role") == "leader":
+                    m.setdefault("lianban", tdata.get("leader_lianban"))
+                    m.setdefault("source", "spec_lead")
+            assessments.append(
+                assess_theme_from_members(
+                    theme_id,
+                    tdata.get("label", theme_id),
+                    members,
+                    pct_map,
+                )
+            )
+    else:
+        for theme_id, body in themes.items():
+            if not isinstance(body, dict):
+                continue
+            member_codes = [m["ts_code"] for m in parse_theme_members(theme_id, body)]
+            if not any(c in pct_map for c in member_codes):
+                continue
+            assessments.append(assess_theme(theme_id, body, pack, pct_map))
 
     assessments.sort(key=lambda x: -x["strength_score"])
     for i, a in enumerate(assessments):
         a["strength_rank"] = i + 1
 
-    retreats = [a["theme_id"] for a in assessments if a["lifecycle_stage"] == "retreat"]
     leader_blocks = [
         a["theme_id"]
         for a in assessments
@@ -231,7 +273,8 @@ def build_theme_context(pack: dict[str, Any], themes_cfg: dict[str, Any] | None 
     ]
 
     return {
-        "version": cfg.get("version", "1.0.0"),
+        "version": cfg.get("version", "2.0.0"),
+        "leader_policy": cfg.get("leader_policy", "spec_lead"),
         "theme_index": {ts: v for ts, v in theme_index.items()},
         "themes": assessments,
         "sector_retreats": [
@@ -249,6 +292,10 @@ def build_theme_context(pack: dict[str, Any], themes_cfg: dict[str, Any] | None 
     }
 
 
-def theme_for_symbol(ts_code: str, themes: dict[str, Any] | None = None) -> dict[str, Any] | None:
-    idx = build_theme_index((themes or load_themes_config()).get("themes") or {})
+def theme_for_symbol(
+    ts_code: str,
+    themes: dict[str, Any] | None = None,
+    resolution: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    idx = build_theme_index((themes or load_themes_config()).get("themes") or {}, resolution)
     return idx.get(ts_code.strip().upper())

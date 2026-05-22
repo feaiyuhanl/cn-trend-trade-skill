@@ -7,7 +7,7 @@
 
 | # | 问题域 | 验收标准 |
 |---|--------|----------|
-| 1 | 板块轮动 / 题材生命周期 | `theme_context` 含阶段、龙头状态、板块强度序；龙头跌停熔断同主题；`themes.yaml` 含 leader/follower |
+| 1 | 板块轮动 / 题材生命周期 | `theme_context` 含阶段、龙头状态、板块强度序；龙头跌停熔断同主题；`themes.yaml` 东财 BK 概念 + `spec_lead` 动态龙头 |
 | 2 | 市场情绪 | `market_sentiment` 含涨跌停比、破板率、连板统计、热点题材；与 `market_filter` / entry 机检联动 |
 | 3 | 事件风险 | `event_risk` 含减持、财报窗口、业绩预警；机检阻断新开仓 |
 | 4 | 质量兜底 | `quality_gate` 含 ST、常年亏损、黑名单；自选筛选排除 block；纪律项机检 |
@@ -30,14 +30,16 @@ assemble / build_live_pack
 > **实施状态**：核心代码与机检已落地（v0.6.0）；实盘 enrich 依赖 `TUSHARE_TOKEN`。
 
 ### 配置
-- [x] `config/themes.yaml` — leaders + member roles
+- [x] `config/themes.yaml` — 东财 BK 概念主键 + `leader_policy: spec_lead`
+- [x] `core/theme_leader_resolver.py` — dc_member + limit_list_d 选举龙头
+- [x] `core/theme_dc_cache.py` — 接口缓存
 - [x] `config/sentiment.yaml` — 阈值档位
 - [x] `config/event_risk.yaml` — 财报窗口、减持
 - [x] `config/quality_gate.yaml` — ST/亏损/黑名单
 - [x] `config/watchlist_risk.yaml` — 用户手工风险标记
 
 ### 核心代码
-- [x] `core/theme_graph.py`
+- [x] `core/theme_graph.py` — 消费 `theme_resolution`
 - [x] `core/market_sentiment.py`
 - [x] `core/quality_gate.py`
 - [x] `core/event_risk.py`

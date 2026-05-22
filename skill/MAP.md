@@ -59,7 +59,7 @@ python cli.py --finalize .trend-trade/tmp/trade_trace.json \
 12. [lenses/discipline.md](lenses/discipline.md)
 13. [lenses/review.md](lenses/review.md)（复盘时 · [演进维](reference/skill-improvements.md)）
 
-配置：`config/themes.yaml`（含龙头）、`config/sentiment.yaml`、`config/event_risk.yaml`、`config/quality_gate.yaml`
+配置：`config/themes.yaml`（东财 `BK*.DC` + `spec_lead` 动态龙头）、`config/sentiment.yaml`、`config/event_risk.yaml`、`config/quality_gate.yaml`
 
 ### Reference
 

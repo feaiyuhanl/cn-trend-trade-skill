@@ -18,23 +18,9 @@ def _load_config() -> dict[str, Any]:
 
 
 def _latest_trade_date(pro, max_back: int = 10) -> str | None:
-    end = datetime.now()
-    if end.hour < 16:
-        end = end - timedelta(days=1)
-    for _ in range(max_back):
-        while end.weekday() >= 5:
-            end -= timedelta(days=1)
-        d = end.strftime("%Y%m%d")
-        try:
-            import pandas as pd
+    from core.trade_date_util import resolve_latest_trade_date
 
-            up = pro.limit_list_d(trade_date=d, limit_type="U")
-            if up is not None and not up.empty:
-                return d
-        except Exception:
-            pass
-        end -= timedelta(days=1)
-    return None
+    return resolve_latest_trade_date(pro)
 
 
 def _parse_lianban(row: Any) -> int:

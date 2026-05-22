@@ -360,7 +360,33 @@ def run_screen(
     elif policy.get("max_symbols_per_run"):
         symbols = symbols[: int(policy["max_symbols_per_run"])]
 
-    theme_index = build_theme_index(cfg["themes"])
+    theme_resolution: dict[str, Any] | None = None
+    if live:
+        from core.theme_leader_resolver import resolve_theme_membership_for_universe
+
+        pro = None
+        try:
+            from core.pack_enrich import _get_pro
+
+            pro = _get_pro()
+        except Exception:
+            pro = None
+        if pro:
+            theme_resolution = resolve_theme_membership_for_universe(
+                pro,
+                {"themes": cfg["themes"], "version": "2.0.0", "leader_policy": "spec_lead"},
+                symbols,
+                mode="live",
+            )
+    if theme_resolution:
+        from core.theme_graph import build_theme_index as _build_full_index
+
+        theme_index = {
+            ts: v["theme"]
+            for ts, v in _build_full_index(cfg["themes"], theme_resolution).items()
+        }
+    else:
+        theme_index = build_theme_index(cfg["themes"])
     holdings_ts = holding_ts_codes(cfg["holdings"])
     # themes of current holdings
     holding_themes = {theme_index.get(ts) for ts in holdings_ts} - {None}
@@ -373,6 +399,9 @@ def run_screen(
     gaps: list[str] = []
     market_note = ""
     as_of = ""
+    trade_date = ""
+    data_stale = False
+    stale_notice: dict[str, str] = {}
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
     failed_batches: list[str] = []
     last_pack: dict[str, Any] | None = None
@@ -397,7 +426,11 @@ def run_screen(
 
         last_pack = pack
         attach_fact_index(pack)
-        as_of = (pack.get("meta") or {}).get("as_of") or as_of
+        meta_pack = pack.get("meta") or {}
+        as_of = meta_pack.get("as_of") or as_of
+        trade_date = meta_pack.get("trade_date") or trade_date
+        if meta_pack.get("data_stale"):
+            data_stale = True
         if i == 0 and pack.get("indices"):
             parts = []
             for idx in pack["indices"]:
@@ -438,6 +471,12 @@ def run_screen(
         "meta": {
             "run_id": run_id,
             "as_of": as_of,
+            "trade_date": trade_date,
+            "data_stale": data_stale,
+            "expected_trade_date": stale_notice.get("expected_trade_date") or trade_date,
+            **(
+                {k: stale_notice[k] for k in ("data_stale_headline", "data_stale_detail", "data_stale_retry", "data_stale_notice") if k in stale_notice}
+            ),
             "output_label": policy.get("output_label") or "watch_pool_only",
             "screened": len(ranked),
             "symbols_requested": len(symbols),
@@ -452,7 +491,16 @@ def run_screen(
         "watch_pullback": watch_pullback,
         "near_high_trim": near_high,
         "avoid_count": avoid_n,
-        "gaps": gaps + ([f"failed_batches: {len(failed_batches)}"] if failed_batches else []),
+        "gaps": gaps
+        + (
+            [
+                stale_notice.get("data_stale_notice")
+                or "data_stale: 行情 K 线落后于当日收盘日，外部数据尚未刷新，请稍后重跑"
+            ]
+            if data_stale
+            else []
+        )
+        + ([f"failed_batches: {len(failed_batches)}"] if failed_batches else []),
         "failed_batches": failed_batches,
         "all_ranked": ranked,
         "holdings_ts": sorted(holdings_ts),
@@ -463,6 +511,8 @@ def run_screen(
         tc = (last_pack.get("slots") or {}).get("theme_context")
         if tc:
             result["theme_context"] = tc
+        if theme_resolution:
+            result["theme_resolution"] = theme_resolution
     result["risk_blocked"] = [
         {
             "ts_code": r["ts_code"],
@@ -497,14 +547,28 @@ def render_screen_report(result: dict[str, Any]) -> str:
     lines = [
         "# 自选趋势观察池报告",
         "",
-        f"> **非买入推荐** · 数据截至：`{meta.get('as_of', '—')}` · Run：`{meta.get('run_id', '—')}`",
-        "",
-        "## 市场环境",
-        "",
-        f"- **allow_new_trend_trade**：{mf.get('allow_new_trend_trade', '—')}",
-        f"- **摘要**：{mf.get('regime_note') or '—'}",
+        f"> **非买入推荐** · 行情交易日：`{meta.get('trade_date', '—')}` · "
+        f"拉取时间：`{meta.get('as_of', '—')}` · Run：`{meta.get('run_id', '—')}`",
         "",
     ]
+    if meta.get("data_stale"):
+        lines.append("> **警告 · 外部行情尚未就绪（非程序用错交易日）**")
+        if meta.get("data_stale_headline"):
+            lines.append(f"> {meta['data_stale_headline']}")
+        if meta.get("data_stale_detail"):
+            lines.append(f"> {meta['data_stale_detail']}")
+        if meta.get("data_stale_retry"):
+            lines.append(f"> {meta['data_stale_retry']}")
+        lines.append("")
+    lines.extend(
+        [
+            "## 市场环境",
+            "",
+            f"- **allow_new_trend_trade**：{mf.get('allow_new_trend_trade', '—')}",
+            f"- **摘要**：{mf.get('regime_note') or '—'}",
+            "",
+        ]
+    )
     retreats = mf.get("sector_retreats") or []
     if retreats:
         lines.append("### 板块退潮")

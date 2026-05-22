@@ -9,6 +9,7 @@ import pandas as pd
 from core import SKILL_VERSION
 from core.config_loader import fetch_lookback, resolve_indices_for_profile
 from core.hints import compute_derived_hints
+from core.trade_date_util import attach_pack_trade_date_meta, expected_trade_session_date
 from core.ts_code import normalize_symbols
 
 _FETCH_STATUS: dict[str, str] = {}
@@ -31,20 +32,11 @@ def _get_pro():
     return ts.pro_api()
 
 
-def _latest_expected_trade_date() -> datetime:
-    """Latest A-share session we expect a daily bar for (close 15:00)."""
-    now = datetime.now()
-    if now.hour < 15:
-        now = now - timedelta(days=1)
-    while now.weekday() >= 5:
-        now = now - timedelta(days=1)
-    return now
-
-
 def _end_start_dates(lookback_daily: int) -> tuple[str, str]:
-    end = _latest_expected_trade_date()
+    end_s = expected_trade_session_date()
+    end = datetime.strptime(end_s, "%Y%m%d")
     start = end - timedelta(days=int(lookback_daily * 1.6))
-    return start.strftime("%Y%m%d"), end.strftime("%Y%m%d")
+    return start.strftime("%Y%m%d"), end_s
 
 
 def _ak_symbol(ts_code: str) -> str:
@@ -114,7 +106,13 @@ def _merge_daily_supplement(
     latest = str(ts_df["trade_date"].max())
     if latest >= end:
         return ts_df
-    ak_df = _fetch_daily_akshare(ts_code, latest, end, is_index=is_index)
+    next_day = datetime.strptime(latest, "%Y%m%d") + timedelta(days=1)
+    while next_day.weekday() >= 5:
+        next_day += timedelta(days=1)
+    ak_start = next_day.strftime("%Y%m%d")
+    ak_df = _fetch_daily_akshare(ts_code, ak_start, end, is_index=is_index)
+    if ak_df.empty:
+        ak_df = _fetch_daily_akshare(ts_code, end, end, is_index=is_index)
     if ak_df.empty:
         _FETCH_MESSAGES.append(
             f"akshare supplement empty for {ts_code} (tushare through {latest}, want {end})"
@@ -262,7 +260,8 @@ def _fetch_instrument(
 def _fetch_breadth(pro) -> list[dict[str, Any]] | None:
     """Optional: limit up/down counts for latest trade date."""
     try:
-        end = datetime.now().strftime("%Y%m%d")
+        end = expected_trade_session_date()
+        end_dt = datetime.strptime(end, "%Y%m%d")
         for _ in range(10):
             up = pro.limit_list_d(trade_date=end, limit_type="U")
             down = pro.limit_list_d(trade_date=end, limit_type="D")
@@ -278,7 +277,7 @@ def _fetch_breadth(pro) -> list[dict[str, Any]] | None:
                         "source_id": "tushare",
                     }
                 ]
-            end_dt = datetime.strptime(end, "%Y%m%d") - timedelta(days=1)
+            end_dt = end_dt - timedelta(days=1)
             while end_dt.weekday() >= 5:
                 end_dt -= timedelta(days=1)
             end = end_dt.strftime("%Y%m%d")
@@ -374,4 +373,5 @@ def build_live_pack(
     from core.pack_enrich import enrich_a_share_context
 
     enrich_a_share_context(pack)
+    attach_pack_trade_date_meta(pack, pro=pro)
     return pack

@@ -1,0 +1,98 @@
+{
+  "version": "2.0.0",
+  "leader_policy": "spec_lead",
+  "trade_date": "20260521",
+  "theme_index": {
+    "601016.SH": {
+      "theme": "BK0427.DC",
+      "role": "follower",
+      "label": "风电",
+      "name": "节能风电",
+      "dc_theme_code": "BK0427.DC"
+    },
+    "000591.SZ": {
+      "theme": "BK0427.DC",
+      "role": "follower",
+      "label": "风电",
+      "name": "太阳能",
+      "dc_theme_code": "BK0427.DC"
+    },
+    "600578.SH": {
+      "theme": "BK0427.DC",
+      "role": "leader",
+      "label": "风电",
+      "name": "京能电力",
+      "dc_theme_code": "BK0427.DC"
+    },
+    "000997.SZ": {
+      "theme": "BK0556.DC",
+      "role": "follower",
+      "label": "移动支付",
+      "name": "新大陆",
+      "dc_theme_code": "BK0556.DC"
+    },
+    "002881.SZ": {
+      "theme": "BK0556.DC",
+      "role": "leader",
+      "label": "移动支付",
+      "name": "leader_fixture",
+      "dc_theme_code": "BK0556.DC"
+    }
+  },
+  "themes": {
+    "BK0427.DC": {
+      "theme_id": "BK0427.DC",
+      "label": "风电",
+      "leader_ts_code": "600578.SH",
+      "leader_lianban": 0,
+      "leader_pct_chg_1d": -2.36,
+      "leader_limit_up": false,
+      "member_count": 3,
+      "members": [
+        {
+          "ts_code": "600578.SH",
+          "name": "京能电力",
+          "role": "leader",
+          "source": "spec_lead"
+        },
+        {
+          "ts_code": "601016.SH",
+          "name": "节能风电",
+          "role": "follower",
+          "source": "spec_lead"
+        },
+        {
+          "ts_code": "000591.SZ",
+          "name": "太阳能",
+          "role": "follower",
+          "source": "spec_lead"
+        }
+      ]
+    },
+    "BK0556.DC": {
+      "theme_id": "BK0556.DC",
+      "label": "移动支付",
+      "leader_ts_code": "002881.SZ",
+      "leader_lianban": 2,
+      "leader_pct_chg_1d": 10.0,
+      "leader_limit_up": true,
+      "member_count": 2,
+      "members": [
+        {
+          "ts_code": "002881.SZ",
+          "name": "leader_fixture",
+          "role": "leader",
+          "source": "spec_lead"
+        },
+        {
+          "ts_code": "000997.SZ",
+          "name": "新大陆",
+          "role": "follower",
+          "source": "spec_lead"
+        }
+      ]
+    }
+  },
+  "leader_codes": ["002881.SZ", "600578.SH"],
+  "gaps": []
+}

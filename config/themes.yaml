@@ -1,5 +1,7 @@
-# 主题图谱：龙头 / 跟风 / 生命周期（core/theme_graph.py）
-version: "1.1.0"
+# 主题图谱 v2：主键 = 东财概念代码 (dc_index / dc_member 的 BK*.DC)
+# 龙头：运行时按 spec_lead 选举（连板高度 > 当日涨停 > 涨幅），不手写 leaders / pins
+version: "2.0.0"
+leader_policy: spec_lead
 
 lifecycle_stages:
   - new
@@ -9,95 +11,11 @@ lifecycle_stages:
   - retreat
 
 themes:
-  green_power:
-    label: 电力/绿能/新能源链
-    leaders:
-      - ts_code: 601991.SH
-        name: 大唐发电
-        note: 板块情绪锚；跌停或大幅回撤时降级同主题跟风
-    members:
-      - ts_code: 601016.SH
-        name: 节能风电
-        role: follower
-      - ts_code: 000591.SZ
-        name: 太阳能
-        role: follower
-      - ts_code: 600956.SH
-        name: 新天绿能
-        role: follower
-      - ts_code: 000537.SZ
-        name: 绿发电力
-        role: follower
-      - ts_code: 000531.SZ
-        name: 穗恒运A
-        role: follower
-      - ts_code: 000601.SZ
-        name: 韶能股份
-        role: follower
-      - ts_code: 601330.SH
-        name: 绿色动力
-        role: follower
-      - ts_code: 601868.SH
-        name: 中国能建
-        role: follower
-      - ts_code: 603126.SH
-        name: 中材节能
-        role: follower
-      - ts_code: 603876.SH
-        name: 鼎胜新材
-        role: follower
-      - ts_code: 605222.SH
-        name: 起帆电缆
-        role: follower
-      - ts_code: 000899.SZ
-        name: 赣能股份
-        role: follower
-      - ts_code: 000690.SZ
-        name: 宝新能源
-        role: follower
-      - ts_code: 601669.SH
-        name: 中国电建
-        role: follower
-      - ts_code: 600089.SH
-        name: 特变电工
-        role: follower
-      - ts_code: 002015.SZ
-        name: 协鑫能科
-        role: follower
-      - ts_code: 601179.SH
-        name: 中国西电
-        role: follower
-      - ts_code: 600312.SH
-        name: 平高电气
-        role: follower
-
-  semiconductor:
-    label: 半导体/电子制造
-    leaders:
-      - ts_code: 603986.SH
-        name: 兆易创新
-    members:
-      - ts_code: 600584.SH
-        role: follower
-      - ts_code: 002371.SZ
-        role: follower
-      - ts_code: 002475.SZ
-        role: follower
-      - ts_code: 002156.SZ
-        role: follower
-      - ts_code: 603019.SH
-        role: follower
-      - ts_code: 000977.SZ
-        role: follower
-      - ts_code: 002463.SZ
-        role: follower
-
-  fintech:
-    label: 金融科技/支付
-    leaders:
-      - ts_code: 000997.SZ
-        name: 新大陆
-    members:
-      - ts_code: 000997.SZ
-        name: 新大陆
-        role: leader
+  BK0427.DC:
+    label: 风电
+  BK0493.DC:
+    label: 新能源
+  BK1036.DC:
+    label: 半导体
+  BK0556.DC:
+    label: 移动支付

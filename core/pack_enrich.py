@@ -21,6 +21,7 @@ from core.theme_graph import (
     load_themes_config,
     theme_for_symbol,
 )
+from core.theme_leader_resolver import resolve_themes_for_pack
 from core.ts_code import normalize_symbols
 
 _ROOT = Path(__file__).resolve().parent.parent
@@ -39,9 +40,12 @@ def _get_pro():
     return ts.pro_api()
 
 
-def _themes_for_symbols(ts_codes: list[str]) -> set[str]:
+def _themes_for_symbols(
+    ts_codes: list[str],
+    resolution: dict[str, Any] | None = None,
+) -> set[str]:
     cfg = load_themes_config()
-    idx = build_theme_index(cfg.get("themes") or {})
+    idx = build_theme_index(cfg.get("themes") or {}, resolution)
     themes: set[str] = set()
     for ts in ts_codes:
         m = idx.get(ts.strip().upper())
@@ -57,8 +61,10 @@ def _fetch_missing_leaders(pack: dict[str, Any], pro) -> None:
     from core.fetch_live import _fetch_instrument, fetch_lookback
 
     ts_codes = [s["ts_code"] for s in pack.get("symbols", [])]
-    themes = _themes_for_symbols(ts_codes)
-    leaders = leader_codes_for_themes(load_themes_config().get("themes") or {}, themes)
+    resolution = (pack.get("slots") or {}).get("theme_resolution")
+    themes = _themes_for_symbols(ts_codes, resolution)
+    themes_cfg = load_themes_config().get("themes") or {}
+    leaders = leader_codes_for_themes(themes_cfg, themes, resolution)
     have = {s["ts_code"] for s in pack.get("symbols", [])}
     missing = [c for c in leaders if c not in have]
     if not missing:
@@ -93,13 +99,16 @@ def enrich_a_share_context(pack: dict[str, Any]) -> dict[str, Any]:
     symbols = [s["ts_code"] for s in pack.get("symbols", [])]
     pro = _get_pro() if mode == "live" else None
 
+    pack.setdefault("slots", {})
+
+    # Theme membership + spec_lead election (东财 BK 概念)
+    pack["slots"]["theme_resolution"] = resolve_themes_for_pack(pack, pro)
+
     if mode == "live" and pro:
         _fetch_missing_leaders(pack, pro)
         symbols = [s["ts_code"] for s in pack.get("symbols", [])]
 
-    pack.setdefault("slots", {})
-
-    # Theme lifecycle
+    # Theme lifecycle (after optional leader bars appended)
     pack["slots"]["theme_context"] = build_theme_context(pack)
 
     # Sentiment
@@ -157,8 +166,9 @@ def enrich_a_share_context(pack: dict[str, Any]) -> dict[str, Any]:
 
     # Per-symbol role tags on instruments
     themes = load_themes_config().get("themes") or {}
+    resolution = (pack.get("slots") or {}).get("theme_resolution")
     for inst in pack.get("symbols", []):
-        meta = theme_for_symbol(inst["ts_code"], {"themes": themes})
+        meta = theme_for_symbol(inst["ts_code"], {"themes": themes}, resolution)
         if meta:
             inst["theme_meta"] = meta
 
@@ -166,8 +176,15 @@ def enrich_a_share_context(pack: dict[str, Any]) -> dict[str, Any]:
 
 
 def extra_symbols_for_assemble(symbols: list[str]) -> list[str]:
-    """Leaders to include in assemble symbol list."""
+    """Pre-fetch elected spec_lead leaders for themes touched by requested symbols."""
     norm = normalize_symbols(symbols)
-    themes = _themes_for_symbols(norm)
-    leaders = leader_codes_for_themes(load_themes_config().get("themes") or {}, themes)
-    return normalize_symbols(norm + leaders)
+    pro = _get_pro()
+    if not pro:
+        return norm
+    from core.theme_leader_resolver import _latest_trade_date_pro, resolve_themes
+
+    trade_date = _latest_trade_date_pro(pro) or ""
+    if not trade_date:
+        return norm
+    res = resolve_themes(pro=pro, trade_date=trade_date, universe=norm, mode="live")
+    return normalize_symbols(norm + list(res.get("leader_codes") or []))

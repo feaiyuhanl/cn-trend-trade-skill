@@ -7,7 +7,8 @@
 ## 必读
 
 - `pack.slots.theme_context`
-- `config/themes.yaml`（leaders / members / role）
+- `config/themes.yaml`（主键 = 东财概念 `BK*.DC`；`leader_policy: spec_lead`）
+- `pack.slots.theme_resolution`（当日选举的龙头/成员）
 - 标的 `theme_meta.role`（leader | follower）
 
 ## 检查项

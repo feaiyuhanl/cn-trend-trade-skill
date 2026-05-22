@@ -36,18 +36,9 @@ def load_watchlist_names(watchlist_path: Path | None = None) -> dict[str, str]:
 
 
 def _latest_trade_date(pro) -> str | None:
-    try:
-        df = pro.trade_cal(
-            exchange="SSE",
-            start_date=(datetime.now().replace(year=datetime.now().year - 1)).strftime("%Y%m%d"),
-            end_date=datetime.now().strftime("%Y%m%d"),
-            is_open="1",
-        )
-        if df is None or df.empty:
-            return None
-        return str(df.iloc[-1]["cal_date"])
-    except Exception:
-        return None
+    from core.trade_date_util import latest_open_trade_date
+
+    return latest_open_trade_date(pro)
 
 
 def _fetch_mv_map(pro, ts_codes: list[str]) -> dict[str, dict[str, Any]]:

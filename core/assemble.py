@@ -102,6 +102,9 @@ def assemble(
         pack["meta"]["run_id"] = run_id
     pack["meta"]["skill_version"] = SKILL_VERSION
     pack["meta"]["as_of"] = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    from core.trade_date_util import attach_pack_trade_date_meta
+
+    attach_pack_trade_date_meta(pack)
     mode = pack["meta"].get("mode", "fixture")
     pack["meta"]["rules_profile"] = "production" if mode == "live" else "development"
     from adapters.runner import apply_adapters

@@ -208,7 +208,16 @@ def cmd_screen_watchlist(args: argparse.Namespace) -> int:
         print(f"FAIL {e}", file=sys.stderr)
         return 1
     paths = result.get("_paths", {})
-    print(f"OK screened {result['meta']['screened']} as_of={result['meta'].get('as_of')}")
+    print(
+        f"OK screened {result['meta']['screened']} "
+        f"trade_date={result['meta'].get('trade_date')} as_of={result['meta'].get('as_of')}"
+    )
+    if result["meta"].get("data_stale"):
+        print("  WARN data_stale: 外部行情未刷新到当日收盘，结论勿当作今日盘面", file=sys.stderr)
+        for key in ("data_stale_headline", "data_stale_detail", "data_stale_retry"):
+            line = result["meta"].get(key)
+            if line:
+                print(f"    {line}", file=sys.stderr)
     print(f"  watch_pool: {len(result.get('watch_pool') or [])}")
     print(f"  allow_new_trend_trade: {result.get('market_filter', {}).get('allow_new_trend_trade')}")
     print(f"  json -> {paths.get('json')}")

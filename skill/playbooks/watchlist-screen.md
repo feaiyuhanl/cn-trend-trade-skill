@@ -5,7 +5,7 @@
 ## 前置
 
 1. 已配置 `config/watchlist.yaml`（含 `screening_policy`）
-2. 已配置 `config/themes.yaml`（含 **龙头 leaders**）、`config/my_discipline.yaml`
+2. 已配置 `config/themes.yaml`（东财 `BK*.DC` 概念 + 动态龙头）、`config/my_discipline.yaml`
 3. 可选：`config/watchlist_risk.yaml`（手工风险标红）、`config/quality_blacklist.yaml`
 4. `TUSHARE_TOKEN`（实盘拉取 + enrich）
 
@@ -13,7 +13,7 @@
 
 | 步 | 动作 | 产出 |
 |----|------|------|
-| 0 | 确认 `as_of` 交易日 | — |
+| 0 | 确认 `meta.trade_date`（行情日）与 `data_stale`；休盘后 15:05 再跑 | `screen_report.md` 页眉 |
 | 1 | `python cli.py --screen-watchlist [--max N]` | `watchlist_screen.json` + `screen_report.md` |
 | 2 | 阅读报告 **市场情绪 / 题材生命周期 / 风险标的** | `allow_new_trend_trade`、龙头状态 |
 | 3 | 仅对 `watch_pool` 中标的，按需 `assemble` + 深度分析 | `trade_trace` |
@@ -42,6 +42,7 @@
 - 在文案中使用「优先推荐」「买入」等词（见 `forbid_output_words`）
 - 对 `risk_flags` 标的隐瞒风险
 - 多轮中间分析让用户点 Accept；应 **一条** `--screen-watchlist` 后读 `screen_report.md` 再回复
+- 用 `trade_date` 描述行情日；`as_of` 仅为拉取时间；`data_stale` 时告知用户稍后重跑，勿用昨日涨跌幅当「今日」
 
 ## 自选风险 / 垃圾股
 
