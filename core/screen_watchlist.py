@@ -68,118 +68,69 @@ def holding_ts_codes(holdings: list[dict[str, Any]]) -> set[str]:
     return {str(h["ts_code"]).strip().upper() for h in holdings if h.get("ts_code")}
 
 
-def score_symbol_base(ts: str, name: str, h: dict[str, Any], *, pct_1d: float | None) -> dict[str, Any]:
-    """Score from derived_hints; action is pre-policy label."""
+def candidate_row_from_inst(
+    ts: str,
+    name: str,
+    h: dict[str, Any],
+    *,
+    pct_1d: float | None,
+    flat: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Objective snapshot for AI ranking — action/safety_rank filled by Agent via screen_trace."""
     struct = h.get("structure", "insufficient_data")
-    above20 = h.get("price_above_ma20")
-    above60 = h.get("price_above_ma60")
-    s20 = h.get("ma20_slope_daily") or 0
-    s60d = h.get("ma60_slope_daily") or 0
-    s60w = h.get("ma60_slope_weekly") or 0
-    vol_r = h.get("vol_ratio_5_20") or 1.0
-    dist52 = h.get("distance_from_52w_high_pct")
-    atr_pct = h.get("atr14_pct") or 0
-    close = h.get("_close")
-
-    score = 0
     tags: list[str] = []
-
     if struct == "higher_highs_higher_lows":
-        score += 4
         tags.append("HH/HL")
     elif struct == "range_bound":
-        score += 1
         tags.append("盘整")
     elif struct == "lower_highs_lower_lows":
-        score -= 4
         tags.append("LH/LL")
     else:
         tags.append("数据不足")
 
-    if above20:
-        score += 2
-    else:
-        tags.append("跌破MA20")
-    if above60:
-        score += 2
-    if s20 > 0:
-        score += 2
-    if s60d > 0:
-        score += 1
-    if s60w > 0:
-        score += 1
-    if 0.85 <= vol_r <= 1.8:
-        score += 1
-    elif vol_r > 2.2:
-        score -= 1
-        tags.append("放量过热")
-    if dist52 is not None:
-        if dist52 > -8:
-            score -= 1
-            tags.append("近52周高")
-        elif -25 <= dist52 <= -8:
-            score += 1
-    if atr_pct > 0.1:
-        score -= 1
-        tags.append("高波动")
-    if pct_1d is not None and pct_1d <= -4.0:
-        score -= 3
-        tags.append("1日大跌")
-    elif pct_1d is not None and pct_1d <= -2.0:
-        score -= 1
-        tags.append("1日偏弱")
-
-    if struct == "lower_highs_lower_lows" or not above20:
-        phase = "reversal"
-    elif struct == "higher_highs_higher_lows" and above20 and s20 > 0:
-        if vol_r > 2.0 and dist52 is not None and dist52 > -6:
-            phase = "exhaustion"
-        elif not above60 or s60w < 0 or (dist52 is not None and dist52 < -18):
-            phase = "startup"
-        else:
-            phase = "acceleration"
-    else:
-        phase = "unclear"
-
-    if phase == "reversal":
-        action = "avoid"
-        note = "结构偏弱或跌破 MA20，不符合趋势观察"
-    elif phase == "exhaustion":
-        action = "wait"
-        note = "加速末段或放量过热；仅观察，不追涨"
-    elif phase == "startup":
-        action = "watch_pullback"
-        note = "趋势修复中；仅观察，等回踩 MA20 缩量企稳"
-    elif phase == "acceleration":
-        if dist52 is not None and dist52 > -5:
-            action = "near_high_trim"
-            note = "趋势尚可但近前高；观察池内不追涨，等回踩"
-        else:
-            action = "watch_pool"
-            note = "多周期多头结构；列入观察池，突破/回踩确认后再考虑"
-    else:
-        action = "wait"
-        note = "信号不清晰，观望"
+    flat = flat or {}
+    prefix = f"symbol:{ts}."
+    fundamentals = {
+        k.replace(prefix + "fundamentals.", ""): flat[k]
+        for k in flat
+        if k.startswith(prefix + "fundamentals.")
+    }
 
     return {
         "ts_code": ts,
         "name": name,
-        "score": score,
-        "phase": phase,
-        "action": action,
-        "note": note,
+        "safety_rank": None,
+        "score": None,
+        "phase": "pending_ai",
+        "action": "pending",
+        "note": "待 AI 综合 safety_rank（见 watchlist-screen playbook）",
         "tags": tags,
-        "latest_close": close,
+        "latest_close": h.get("_close"),
         "pct_chg_1d": pct_1d,
         "structure": struct,
-        "price_above_ma20": above20,
-        "vol_ratio_5_20": vol_r,
-        "distance_from_52w_high_pct": dist52,
+        "price_above_ma20": h.get("price_above_ma20"),
+        "vol_ratio_5_20": h.get("vol_ratio_5_20"),
+        "amount_ratio_5_20": h.get("amount_ratio_5_20"),
+        "distance_from_52w_high_pct": h.get("distance_from_52w_high_pct"),
+        "distance_from_weekly_high_pct": h.get("distance_from_weekly_high_pct"),
+        "distance_from_monthly_high_pct": h.get("distance_from_monthly_high_pct"),
         "ma20_value": h.get("ma20_value"),
-        "atr14_pct": atr_pct,
+        "atr14_pct": h.get("atr14_pct"),
+        "fundamentals": fundamentals,
+        "weekly_position": "",
+        "volume_context": "unclear",
+        "trap_risk": "unknown",
+        "fundamental_note": "",
+        "facts_used": [],
         "theme": None,
         "downgrade_reasons": [],
+        "ai_eligible": True,
     }
+
+
+def score_symbol_base(ts: str, name: str, h: dict[str, Any], *, pct_1d: float | None) -> dict[str, Any]:
+    """Backward-compatible alias for tests; production ranking uses AI safety_rank."""
+    return candidate_row_from_inst(ts, name, h, pct_1d=pct_1d)
 
 
 def apply_policy_row(
@@ -317,7 +268,7 @@ def apply_sector_retreat_downgrade(rows: list[dict[str, Any]], retreat_info: dic
 
 def cap_watch_pool_by_theme(rows: list[dict[str, Any]], max_per_theme: int) -> None:
     pools = [r for r in rows if r["action"] == "watch_pool"]
-    pools.sort(key=lambda x: (-x["score"], x["ts_code"]))
+    pools.sort(key=lambda x: (-(x.get("safety_rank") or -1), x["ts_code"]))
     kept: dict[str, int] = {}
     keep_ts: set[str] = set()
     for r in pools:
@@ -338,7 +289,188 @@ def instrument_row_from_pack(inst: dict[str, Any], flat: dict[str, Any]) -> dict
     h["_close"] = flat.get(f"symbol:{ts}.latest_close")
     daily = inst.get("bars", {}).get("daily") or []
     pct_1d = float(daily[-1]["pct_chg"]) if daily else None
-    return score_symbol_base(ts, inst.get("name", ts), h, pct_1d=pct_1d)
+    return candidate_row_from_inst(ts, inst.get("name", ts), h, pct_1d=pct_1d, flat=flat)
+
+
+def _merge_slot_symbols(target: dict[str, Any], source: dict[str, Any]) -> None:
+    for ts, rec in (source.get("symbols") or {}).items():
+        target.setdefault("symbols", {})[ts] = rec
+
+
+def merge_batch_into_pack(accum: dict[str, Any] | None, pack: dict[str, Any]) -> dict[str, Any]:
+    """Merge one batch live pack into a universe pack (all symbols for AI)."""
+    if accum is None:
+        accum = {
+            "meta": dict(pack.get("meta") or {}),
+            "symbols": [],
+            "indices": list(pack.get("indices") or []),
+            "slots": {},
+            "market_sentiment": pack.get("market_sentiment"),
+        }
+    by_ts = {s["ts_code"]: s for s in accum.get("symbols", [])}
+    for inst in pack.get("symbols", []):
+        by_ts[inst["ts_code"]] = inst
+    accum["symbols"] = list(by_ts.values())
+    accum["meta"] = dict(pack.get("meta") or accum.get("meta") or {})
+    if pack.get("market_sentiment"):
+        accum["market_sentiment"] = pack["market_sentiment"]
+    slots = accum.setdefault("slots", {})
+    for key in ("quality_gate", "event_risk", "fundamentals", "theme_context", "theme_resolution"):
+        src = (pack.get("slots") or {}).get(key)
+        if not src:
+            continue
+        if key not in slots:
+            slots[key] = src
+            continue
+        if isinstance(src.get("symbols"), dict):
+            tgt = slots.setdefault(key, {"symbols": {}})
+            _merge_slot_symbols(tgt, src)
+        elif key in ("theme_context", "theme_resolution"):
+            slots[key] = src
+    return accum
+
+
+def finalize_ranked_rows(
+    rows: list[dict[str, Any]],
+    *,
+    policy: dict[str, Any],
+    retreat_info: dict[str, Any],
+) -> list[dict[str, Any]]:
+    from core.merge_screen_trace import sort_key_ranked
+
+    apply_sector_retreat_downgrade(rows, retreat_info)
+    cap_watch_pool_by_theme(rows, int(policy.get("max_per_theme") or 2))
+    return sorted(rows, key=sort_key_ranked)
+
+
+def trace_has_ai_ranks(trace: dict[str, Any]) -> bool:
+    for _ts, dec in (trace.get("decisions") or {}).items():
+        sc = (dec or {}).get("screen") or {}
+        if sc.get("safety_rank") is not None:
+            return True
+    return False
+
+
+def rows_from_merged_pack(
+    pack: dict[str, Any],
+    theme_index: dict[str, str],
+) -> list[dict[str, Any]]:
+    flat = (pack.get("fact_index") or {}).get("flat", {})
+    rows: list[dict[str, Any]] = []
+    for inst in pack.get("symbols", []):
+        row = instrument_row_from_pack(inst, flat)
+        row["theme"] = theme_index.get(row["ts_code"])
+        row["theme_meta"] = inst.get("theme_meta") or {}
+        rows.append(row)
+    return rows
+
+
+def apply_post_ai_gates(
+    rows: list[dict[str, Any]],
+    *,
+    policy: dict[str, Any],
+    theme_index: dict[str, str],
+    holdings_ts: set[str],
+    holding_themes: set[str] | None,
+    pack: dict[str, Any],
+) -> None:
+    for i, row in enumerate(rows):
+        if row.get("action") == "pending":
+            continue
+        tid = theme_index.get(row["ts_code"]) or row.get("theme")
+        row["theme"] = tid
+        row = apply_policy_row(
+            row,
+            policy=policy,
+            theme_id=tid,
+            holdings_ts=holdings_ts,
+            holding_themes=holding_themes,
+        )
+        row = apply_pack_gates(row, pack)
+        rows[i] = row
+
+
+def run_merge_screen_trace(
+    *,
+    pack_path: Path,
+    trace_path: Path,
+    watchlist_path: Path | None = None,
+    out_dir: Path | None = None,
+) -> dict[str, Any]:
+    """Apply patched screen_trace to cached screen_pack (no network)."""
+    pack = json.loads(pack_path.read_text(encoding="utf-8"))
+    trace = json.loads(trace_path.read_text(encoding="utf-8"))
+    from core.pack_facts import attach_fact_index
+
+    attach_fact_index(pack)
+    cfg = load_watchlist_config(watchlist_path)
+    policy = cfg["policy"]
+    theme_index = build_theme_index(cfg["themes"])
+    holdings_ts = holding_ts_codes(cfg["holdings"])
+    holding_themes = {theme_index.get(ts) for ts in holdings_ts} - {None}
+
+    from core.merge_screen_trace import merge_trace_into_rows
+
+    rows = rows_from_merged_pack(pack, theme_index)
+    rows = merge_trace_into_rows(rows, trace)
+    apply_post_ai_gates(
+        rows,
+        policy=policy,
+        theme_index=theme_index,
+        holdings_ts=holdings_ts,
+        holding_themes=holding_themes,
+        pack=pack,
+    )
+    retreat_info = detect_sector_retreat(rows, theme_index, policy)
+    ranked = finalize_ranked_rows(rows, policy=policy, retreat_info=retreat_info)
+
+    meta = pack.get("meta") or {}
+    max_out = int(policy.get("max_watch_pool_output") or 15)
+    result: dict[str, Any] = {
+        "meta": {
+            "run_id": meta.get("run_id") or datetime.now().strftime("%Y%m%d-%H%M%S"),
+            "as_of": meta.get("as_of"),
+            "trade_date": meta.get("trade_date"),
+            "data_stale": bool(meta.get("data_stale")),
+            "output_label": policy.get("output_label") or "watch_pool_only",
+            "screened": len(ranked),
+            "ranked_by": "ai_safety_rank",
+            "policy_version": cfg["watchlist_path"].name,
+        },
+        "market_filter": {
+            "regime_note": "",
+            "allow_new_trend_trade": retreat_info.get("allow_new_trend_trade", "yes"),
+            "sector_retreats": retreat_info.get("sector_retreats") or [],
+        },
+        "watch_pool": [r for r in ranked if r["action"] == "watch_pool"][:max_out],
+        "watch_pullback": [r for r in ranked if r["action"] == "watch_pullback"][:max_out],
+        "near_high_trim": [r for r in ranked if r["action"] == "near_high_trim"][:max_out],
+        "avoid_count": sum(1 for r in ranked if r["action"] == "avoid"),
+        "gaps": ["ranked_by_ai_safety_rank"],
+        "all_ranked": ranked,
+        "screen_pack_path": str(pack_path),
+        "screen_trace_path": str(trace_path),
+    }
+    if pack.get("market_sentiment"):
+        result["market_sentiment"] = pack["market_sentiment"]
+    tc = (pack.get("slots") or {}).get("theme_context")
+    if tc:
+        result["theme_context"] = tc
+
+    out = out_dir or (_ROOT / ".trend-trade" / "tmp")
+    out.mkdir(parents=True, exist_ok=True)
+    json_path = out / "watchlist_screen.json"
+    json_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    report_path = out / "screen_report.md"
+    report_path.write_text(render_screen_report(result), encoding="utf-8")
+    if policy.get("archive_runs"):
+        run_id = result["meta"]["run_id"]
+        arch = _ROOT / ".trend-trade" / "archive" / run_id
+        arch.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(json_path, arch / "watchlist_screen.json")
+        shutil.copy2(report_path, arch / "screen_report.md")
+    result["_paths"] = {"json": str(json_path), "report": str(report_path)}
+    return result
 
 
 def run_screen(
@@ -348,6 +480,8 @@ def run_screen(
     live: bool = True,
     max_symbols: int | None = None,
     out_dir: Path | None = None,
+    screen_trace_path: Path | None = None,
+    data_only: bool = False,
 ) -> dict[str, Any]:
     from core.fetch_live import build_live_pack
     from core.pack_facts import attach_fact_index
@@ -404,7 +538,7 @@ def run_screen(
     stale_notice: dict[str, str] = {}
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
     failed_batches: list[str] = []
-    last_pack: dict[str, Any] | None = None
+    merged_pack: dict[str, Any] | None = None
 
     for i in range(0, len(symbols), batch_size):
         batch = symbols[i : i + batch_size]
@@ -415,7 +549,7 @@ def run_screen(
                 if live:
                     pack = build_live_pack(symbols=batch, indices_profile="minimal", run_id=run_id)
                 else:
-                    raise RuntimeError("fixture screen not in run_screen; use tests with score_symbol_base")
+                    raise RuntimeError("fixture screen not in run_screen; use tests with candidate_row_from_inst")
                 break
             except Exception as e:
                 last_err = str(e)
@@ -424,7 +558,7 @@ def run_screen(
             failed_batches.append(f"{batch[0]}..{batch[-1]}: {last_err}")
             continue
 
-        last_pack = pack
+        merged_pack = merge_batch_into_pack(merged_pack, pack)
         attach_fact_index(pack)
         meta_pack = pack.get("meta") or {}
         as_of = meta_pack.get("as_of") or as_of
@@ -444,23 +578,60 @@ def run_screen(
             row = instrument_row_from_pack(inst, flat)
             tid = theme_index.get(row["ts_code"])
             meta = (inst.get("theme_meta") or {})
-            row = apply_policy_row(
-                row,
-                policy=policy,
-                theme_id=tid,
-                holdings_ts=holdings_ts,
-                holding_themes=holding_themes,
-            )
+            row["theme"] = tid
             row["theme_meta"] = meta
-            row = apply_pack_gates(row, pack)
             all_rows.append(row)
         time.sleep(sleep_sec)
 
-    retreat_info = detect_sector_retreat(all_rows, theme_index, policy)
-    apply_sector_retreat_downgrade(all_rows, retreat_info)
-    cap_watch_pool_by_theme(all_rows, int(policy.get("max_per_theme") or 2))
+    out = out_dir or (_ROOT / ".trend-trade" / "tmp")
+    out.mkdir(parents=True, exist_ok=True)
 
-    ranked = sorted(all_rows, key=lambda r: (-r["score"], r["ts_code"]))
+    if merged_pack:
+        from core.pack_facts import attach_fact_index as _attach
+
+        _attach(merged_pack)
+        pack_path = out / "screen_pack.json"
+        pack_path.write_text(json.dumps(merged_pack, ensure_ascii=False, indent=2), encoding="utf-8")
+        from core.init_trace import init_trace_from_pack
+
+        trace_path = out / "screen_trace.json"
+        if not trace_path.exists() or policy.get("reset_screen_trace"):
+            trace = init_trace_from_pack(merged_pack, playbook="watchlist-screen")
+            trace_path.write_text(json.dumps(trace, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    trace_file = screen_trace_path or (out / "screen_trace.json")
+    screen_trace: dict[str, Any] | None = None
+    if trace_file.exists():
+        screen_trace = json.loads(trace_file.read_text(encoding="utf-8"))
+
+    if screen_trace and trace_has_ai_ranks(screen_trace) and not data_only:
+        from core.merge_screen_trace import merge_trace_into_rows
+
+        all_rows = merge_trace_into_rows(all_rows, screen_trace)
+        if merged_pack:
+            apply_post_ai_gates(
+                all_rows,
+                policy=policy,
+                theme_index=theme_index,
+                holdings_ts=holdings_ts,
+                holding_themes=holding_themes,
+                pack=merged_pack,
+            )
+        gaps.append("ranked_by_ai_safety_rank")
+    elif data_only:
+        gaps.append("data_only: patch screen_trace.json then --merge-screen-trace")
+    elif screen_trace and not trace_has_ai_ranks(screen_trace):
+        gaps.append(
+            "ai_rank_pending: fill decisions[].screen.safety_rank for ALL symbols, then --merge-screen-trace"
+        )
+    else:
+        gaps.append(
+            "ai_rank_pending: fill decisions[].screen for ALL symbols, then --merge-screen-trace"
+        )
+
+    retreat_info = detect_sector_retreat(all_rows, theme_index, policy)
+    has_ranks = screen_trace is not None and trace_has_ai_ranks(screen_trace) and not data_only
+    ranked = finalize_ranked_rows(all_rows, policy=policy, retreat_info=retreat_info) if has_ranks else all_rows
     max_out = int(policy.get("max_watch_pool_output") or 15)
     watch_pool = [r for r in ranked if r["action"] == "watch_pool"][:max_out]
     watch_pullback = [r for r in ranked if r["action"] == "watch_pullback"][:max_out]
@@ -480,6 +651,7 @@ def run_screen(
             "output_label": policy.get("output_label") or "watch_pool_only",
             "screened": len(ranked),
             "symbols_requested": len(symbols),
+            "ranked_by": "ai_safety_rank" if has_ranks else None,
             "policy_version": cfg["watchlist_path"].name,
         },
         "market_filter": {
@@ -505,10 +677,12 @@ def run_screen(
         "all_ranked": ranked,
         "holdings_ts": sorted(holdings_ts),
     }
-    if last_pack:
-        if last_pack.get("market_sentiment"):
-            result["market_sentiment"] = last_pack["market_sentiment"]
-        tc = (last_pack.get("slots") or {}).get("theme_context")
+    if merged_pack:
+        result["screen_pack_path"] = str(out / "screen_pack.json")
+        result["screen_trace_path"] = str(out / "screen_trace.json")
+        if merged_pack.get("market_sentiment"):
+            result["market_sentiment"] = merged_pack["market_sentiment"]
+        tc = (merged_pack.get("slots") or {}).get("theme_context")
         if tc:
             result["theme_context"] = tc
         if theme_resolution:
@@ -524,8 +698,6 @@ def run_screen(
         if r.get("risk_flags") or r["action"] == "avoid"
     ]
 
-    out = out_dir or (_ROOT / ".trend-trade" / "tmp")
-    out.mkdir(parents=True, exist_ok=True)
     json_path = out / "watchlist_screen.json"
     json_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     report_path = out / "screen_report.md"
@@ -579,9 +751,10 @@ def render_screen_report(result: dict[str, Any]) -> str:
         lines.append("")
     lines.extend(["## 观察池 watch_pool（仅观察，禁止追涨）", ""])
     for r in result.get("watch_pool") or []:
+        rank = r.get("safety_rank")
         lines.append(
-            f"- **{r['ts_code']}** {r['name']} · 分={r['score']} · 阶段={r['phase']} · "
-            f"收={r.get('latest_close')} · MA20={r.get('ma20_value')} · {r.get('note')}"
+            f"- **{r['ts_code']}** {r['name']} · safety_rank={rank} · trap={r.get('trap_risk')} · "
+            f"vol_ctx={r.get('volume_context')} · 收={r.get('latest_close')} · {r.get('note')}"
         )
         if r.get("risk_flags"):
             lines.append(f"  - **风险**：{', '.join(r['risk_flags'])}")

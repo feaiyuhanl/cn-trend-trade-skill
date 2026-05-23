@@ -1,54 +1,54 @@
-# Playbook: watchlist-screen（自选趋势观察池）
+# Playbook: watchlist-screen（自选趋势观察池 · AI 排序）
 
 **不是选股/荐股。** 输出仅为 `watch_pool` / `watch_pullback` / `near_high_trim` / `wait` / `avoid`。
 
+## 架构（方案 A）
+
+1. **脚本**：拉全自选 pack（日/周/月 K + fundamentals + quality/event）→ `screen_pack.json`
+2. **AI**：对**每一只**标的推理 `safety_rank` + `action`（无写死阈值）
+3. **脚本**：合并 trace + policy 熔断 → `watchlist_screen.json` / `screen_report.md`
+
 ## 前置
 
-1. 已配置 `config/watchlist.yaml`（含 `screening_policy`）
-2. 已配置 `config/themes.yaml`（东财 `BK*.DC` 概念 + 动态龙头）、`config/my_discipline.yaml`
-3. 可选：`config/watchlist_risk.yaml`（手工风险标红）、`config/quality_blacklist.yaml`
-4. `TUSHARE_TOKEN`（实盘拉取 + enrich）
+1. `config/watchlist.yaml`（含 `screening_policy`）
+2. `config/themes.yaml`、`config/my_discipline.yaml`
+3. `TUSHARE_TOKEN`
 
 ## 步骤
 
 | 步 | 动作 | 产出 |
 |----|------|------|
-| 0 | 确认 `meta.trade_date`（行情日）与 `data_stale`；休盘后 15:05 再跑 | `screen_report.md` 页眉 |
-| 1 | `python cli.py --screen-watchlist [--max N]` | `watchlist_screen.json` + `screen_report.md` |
-| 2 | 阅读报告 **市场情绪 / 题材生命周期 / 风险标的** | `allow_new_trend_trade`、龙头状态 |
-| 3 | 仅对 `watch_pool` 中标的，按需 `assemble` + 深度分析 | `trade_trace` |
-| 4 | **禁止**将 watch_pool 称为「买入推荐」 | — |
+| 0 | 确认 `trade_date` / `data_stale` | 报告页眉 |
+| 1 | `python cli.py --screen-watchlist` | `screen_pack.json` + `screen_trace.json`（骨架） |
+| 2 | `python cli.py --show-pack screen-brief --pack .trend-trade/tmp/screen_pack.json` | AI 读数（可分批 `--ts-code`） |
+| 3 | `--init-trace --playbook watchlist-screen --pack screen_pack.json`（若需重建骨架） | `screen_trace.json` |
+| 4 | Agent 按 lens 顺序推理，**每只** `--patch-trace` 写入 `decisions[].screen` | 已填 rank 的 trace |
+| 5 | `python cli.py --validate-trace screen_trace.json --pack screen_pack.json` | 机检通过 |
+| 6 | `python cli.py --merge-screen-trace .trend-trade/tmp/screen_trace.json --pack .trend-trade/tmp/screen_pack.json` | 最终观察池报告 |
+| 7 | 仅对 `watch_pool` 按需 `assemble` + 深度分析 | `trade_trace` |
 
-## 熔断规则（脚本强制执行）
+可选：`--screen-data-only` 仅执行步骤 1 后停止，等待 Agent patch。
 
-### 技术面（原有）
+## Lens 顺序
 
-- 1 日跌幅 > `exclude_if_1d_drop_pct` → 不得留在 `watch_pool`
-- 跌破 MA20 → `avoid` 或 `wait`
-- 与持仓**同主题** → 不得新增 `watch_pool`
-- 同主题 `watch_pool` 超过 `max_per_theme` → 降级
-- 主题内多数收跌 → `allow_new_trend_trade=no`
+1. [market-sentiment.md](../lenses/market-sentiment.md)（环境）
+2. [watchlist-relative-position.md](../lenses/watchlist-relative-position.md)
+3. [watchlist-safety-rank.md](../lenses/watchlist-safety-rank.md)
 
-### A 股特色（0.6+）
+## 熔断规则（脚本强制执行，非 AI 打分）
 
-- **quality_gate tier=block**（ST / 常年亏损 / 黑名单 / `watchlist_risk`）→ `avoid`
-- **event_risk block_entry**（减持 / 财报窗 / 业绩预警）→ 降级 `wait`
-- **龙头跌停或题材 retreat** → 同主题 follower 不得 `watch_pool`
-- **市场情绪 frozen** → 观察池降级；**euphoric + 高破板率** → 不追涨
+- **quality_gate tier=block** → `avoid`
+- **event_risk block_entry** → 降级 `wait`
+- 1 日跌幅 > 阈值、跌破 MA20（policy）、同主题上限、板块退潮、龙头跌停 — 见原 playbook
+- **trap_risk=high** 且 AI 误标 `watch_pool` → validate 失败
 
 ## Agent 禁止
 
-- 使用未登记的临时 `_*.py` 脚本输出最终结论
-- 在文案中使用「优先推荐」「买入」等词（见 `forbid_output_words`）
-- 对 `risk_flags` 标的隐瞒风险
-- 多轮中间分析让用户点 Accept；应 **一条** `--screen-watchlist` 后读 `screen_report.md` 再回复
-- 用 `trade_date` 描述行情日；`as_of` 仅为拉取时间；`data_stale` 时告知用户稍后重跑，勿用昨日涨跌幅当「今日」
-
-## 自选风险 / 垃圾股
-
-走 [watchlist-risk-audit.md](watchlist-risk-audit.md)（`--audit-watchlist`），不要在本 playbook 里手搓表格。
+- 手编 pack 中不存在的 close/市值/距高 %
+- 用写死百分比规则替代推理（阈值由你综合 K 线判断）
+- 跳过任一只自选的 `safety_rank`
+- 使用「买入推荐」等词
 
 ## 相关
 
-- Lens：[../lenses/sector-correlation.md](../lenses/sector-correlation.md)、[../lenses/quality-gate.md](../lenses/quality-gate.md)
-- 配置：`config/watchlist.yaml` → `screening_policy`
+- [watchlist-risk-audit.md](watchlist-risk-audit.md)（垃圾股审计，独立 CLI）

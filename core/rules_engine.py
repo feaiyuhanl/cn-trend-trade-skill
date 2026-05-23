@@ -406,6 +406,82 @@ def _check_sentiment_euphoric_breakout_note(
     return msgs
 
 
+def _is_watchlist_screen_trace(trace: dict[str, Any]) -> bool:
+    return (trace.get("meta") or {}).get("playbook") == "watchlist-screen"
+
+
+def _check_screen_safety_rank_range(
+    pack: dict[str, Any], trace: dict[str, Any], _profile: dict[str, Any]
+) -> list[str]:
+    if not _is_watchlist_screen_trace(trace):
+        return []
+    msgs: list[str] = []
+    for ts, dec in (trace.get("decisions") or {}).items():
+        sc = (dec or {}).get("screen") or {}
+        rank = sc.get("safety_rank")
+        if rank is None:
+            continue
+        try:
+            r = int(rank)
+        except (TypeError, ValueError):
+            msgs.append(f"decisions.{ts}.screen.safety_rank: must be int 0-100")
+            continue
+        if r < 0 or r > 100:
+            msgs.append(f"decisions.{ts}.screen.safety_rank: {r} out of range 0-100")
+    return msgs
+
+
+def _check_screen_trap_high_no_watch_pool(
+    pack: dict[str, Any], trace: dict[str, Any], _profile: dict[str, Any]
+) -> list[str]:
+    if not _is_watchlist_screen_trace(trace):
+        return []
+    msgs: list[str] = []
+    for ts, dec in (trace.get("decisions") or {}).items():
+        sc = (dec or {}).get("screen") or {}
+        if sc.get("trap_risk") == "high" and sc.get("action") == "watch_pool":
+            msgs.append(f"decisions.{ts}.screen: trap_risk=high cannot be watch_pool")
+    return msgs
+
+
+def _check_screen_facts_used_when_ranked(
+    pack: dict[str, Any], trace: dict[str, Any], _profile: dict[str, Any]
+) -> list[str]:
+    if not _is_watchlist_screen_trace(trace):
+        return []
+    flat = (pack.get("fact_index") or build_fact_index(pack))["flat"]
+    msgs: list[str] = []
+    for ts, dec in (trace.get("decisions") or {}).items():
+        sc = (dec or {}).get("screen") or {}
+        if sc.get("safety_rank") is None:
+            continue
+        used = dec.get("facts_used") or sc.get("facts_used") or []
+        if not used:
+            msgs.append(f"decisions.{ts}.screen: facts_used required when safety_rank set")
+            continue
+        for key in used:
+            if key not in flat:
+                msgs.append(f"decisions.{ts}.screen: unknown facts_used key {key!r}")
+    return msgs
+
+
+def _check_screen_quality_block_avoid(
+    pack: dict[str, Any], trace: dict[str, Any], _profile: dict[str, Any]
+) -> list[str]:
+    if not _is_watchlist_screen_trace(trace):
+        return []
+    qg = (pack.get("slots") or {}).get("quality_gate") or {}
+    by_ts = qg.get("symbols") or {}
+    msgs: list[str] = []
+    for ts, dec in (trace.get("decisions") or {}).items():
+        if (by_ts.get(ts) or {}).get("tier") != "block":
+            continue
+        sc = (dec or {}).get("screen") or {}
+        if sc.get("action") not in ("avoid", "pending", None):
+            msgs.append(f"decisions.{ts}.screen: quality block requires action=avoid")
+    return msgs
+
+
 _CHECK_REGISTRY: dict[str, CheckFn] = {
     "observation_numbers_match_evidence": _check_observation_numbers,
     "decisions_have_evidence": _check_decisions_have_evidence,
@@ -427,6 +503,10 @@ _CHECK_REGISTRY: dict[str, CheckFn] = {
     "leader_retreat_blocks_follower": _check_leader_retreat_blocks_follower,
     "sentiment_frozen_blocks_entry": _check_sentiment_frozen_blocks_entry,
     "sentiment_euphoric_breakout_note": _check_sentiment_euphoric_breakout_note,
+    "screen_safety_rank_range": _check_screen_safety_rank_range,
+    "screen_trap_high_no_watch_pool": _check_screen_trap_high_no_watch_pool,
+    "screen_facts_used_when_ranked": _check_screen_facts_used_when_ranked,
+    "screen_quality_block_avoid": _check_screen_quality_block_avoid,
 }
 
 
@@ -448,7 +528,13 @@ def run_machine_rules(
 
     errors: list[str] = []
     warnings: list[str] = []
-    for rule in rules.get("machine_rules", []):
+    is_screen = _is_watchlist_screen_trace(trace)
+    rule_list = (
+        rules.get("watchlist_screen_rules", [])
+        if is_screen
+        else rules.get("machine_rules", [])
+    )
+    for rule in rule_list:
         check_name = rule.get("check")
         fn = _CHECK_REGISTRY.get(check_name or "")
         if not fn:

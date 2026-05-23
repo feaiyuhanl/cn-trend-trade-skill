@@ -39,7 +39,7 @@ from core.recommendation_log import (  # noqa: E402
 )
 from core.review_brief import build_review_brief  # noqa: E402
 from core.rules_engine import load_rules_config  # noqa: E402
-from core.screen_watchlist import run_screen  # noqa: E402
+from core.screen_watchlist import run_merge_screen_trace, run_screen  # noqa: E402
 from core.watchlist_risk_audit import run_audit as run_watchlist_risk_audit  # noqa: E402
 from core.validate import (  # noqa: E402
     load_json,
@@ -203,6 +203,8 @@ def cmd_screen_watchlist(args: argparse.Namespace) -> int:
             live=not args.fixture,
             max_symbols=args.max,
             out_dir=Path(args.out_dir) if args.out_dir else None,
+            screen_trace_path=Path(args.screen_trace) if getattr(args, "screen_trace", None) else None,
+            data_only=getattr(args, "screen_data_only", False),
         )
     except RuntimeError as e:
         print(f"FAIL {e}", file=sys.stderr)
@@ -212,6 +214,12 @@ def cmd_screen_watchlist(args: argparse.Namespace) -> int:
         f"OK screened {result['meta']['screened']} "
         f"trade_date={result['meta'].get('trade_date')} as_of={result['meta'].get('as_of')}"
     )
+    if result["meta"].get("ranked_by"):
+        print(f"  ranked_by: {result['meta']['ranked_by']}")
+    elif result.get("gaps"):
+        for g in result["gaps"]:
+            if "ai_rank" in g or "data_only" in g:
+                print(f"  NOTE {g}")
     if result["meta"].get("data_stale"):
         print("  WARN data_stale: 外部行情未刷新到当日收盘，结论勿当作今日盘面", file=sys.stderr)
         for key in ("data_stale_headline", "data_stale_detail", "data_stale_retry"):
@@ -220,6 +228,37 @@ def cmd_screen_watchlist(args: argparse.Namespace) -> int:
                 print(f"    {line}", file=sys.stderr)
     print(f"  watch_pool: {len(result.get('watch_pool') or [])}")
     print(f"  allow_new_trend_trade: {result.get('market_filter', {}).get('allow_new_trend_trade')}")
+    if result.get("screen_pack_path"):
+        print(f"  screen_pack -> {result['screen_pack_path']}")
+    if result.get("screen_trace_path"):
+        print(f"  screen_trace -> {result['screen_trace_path']}")
+    print(f"  json -> {paths.get('json')}")
+    print(f"  report -> {paths.get('report')}")
+    return 0
+
+
+def cmd_merge_screen_trace(args: argparse.Namespace) -> int:
+    pack_path = Path(args.pack)
+    trace_path = Path(args.merge_screen_trace)
+    if not pack_path.exists():
+        print(f"FAIL pack not found: {pack_path}", file=sys.stderr)
+        return 1
+    if not trace_path.exists():
+        print(f"FAIL trace not found: {trace_path}", file=sys.stderr)
+        return 1
+    try:
+        result = run_merge_screen_trace(
+            pack_path=pack_path,
+            trace_path=trace_path,
+            watchlist_path=Path(args.watchlist) if args.watchlist else None,
+            out_dir=Path(args.out_dir) if args.out_dir else None,
+        )
+    except Exception as e:
+        print(f"FAIL {e}", file=sys.stderr)
+        return 1
+    paths = result.get("_paths", {})
+    print(f"OK merged AI ranks for {result['meta']['screened']} symbols")
+    print(f"  watch_pool: {len(result.get('watch_pool') or [])}")
     print(f"  json -> {paths.get('json')}")
     print(f"  report -> {paths.get('report')}")
     return 0
@@ -459,6 +498,20 @@ def main() -> int:
     parser.add_argument("--watchlist", default="config/watchlist.yaml", help="配合 --screen-watchlist / --audit-watchlist")
     parser.add_argument("--max", type=int, help="配合 --screen-watchlist：最多扫描只数")
     parser.add_argument(
+        "--screen-data-only",
+        action="store_true",
+        help="配合 --screen-watchlist：仅拉 pack + screen_trace 骨架，不合并 AI 排序",
+    )
+    parser.add_argument(
+        "--screen-trace",
+        help="配合 --screen-watchlist：指定已 patch 的 screen_trace.json",
+    )
+    parser.add_argument(
+        "--merge-screen-trace",
+        metavar="TRACE",
+        help="将 AI patch 后的 screen_trace 合并进观察池报告（需 --pack screen_pack.json）",
+    )
+    parser.add_argument(
         "--audit-watchlist",
         action="store_true",
         help="自选风险审计（垃圾股/ST/业绩预警/题材嫌疑，见 watchlist-risk-audit playbook）",
@@ -561,6 +614,11 @@ def main() -> int:
         return cmd_list_rules(args)
     if args.screen_watchlist:
         return cmd_screen_watchlist(args)
+    if args.merge_screen_trace:
+        if not args.pack:
+            print("--merge-screen-trace requires --pack (screen_pack.json)", file=sys.stderr)
+            return 1
+        return cmd_merge_screen_trace(args)
     if args.audit_watchlist:
         return cmd_audit_watchlist(args)
     if args.show_pack:

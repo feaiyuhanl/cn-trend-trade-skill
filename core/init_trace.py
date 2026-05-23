@@ -21,6 +21,12 @@ FULL_ANALYSIS_LENSES = [
     "discipline",
 ]
 
+WATCHLIST_SCREEN_LENSES = [
+    "market-sentiment",
+    "watchlist-relative-position",
+    "watchlist-safety-rank",
+]
+
 
 def _decision_stub(ts_code: str) -> dict[str, Any]:
     return {
@@ -39,6 +45,22 @@ def _decision_stub(ts_code: str) -> dict[str, Any]:
     }
 
 
+def _screen_decision_stub(ts_code: str) -> dict[str, Any]:
+    return {
+        "evidence_ids": [],
+        "facts_used": [],
+        "screen": {
+            "safety_rank": None,
+            "action": "pending",
+            "weekly_position": "",
+            "volume_context": "unclear",
+            "trap_risk": "unknown",
+            "fundamental_note": "",
+            "rank_rationale": "",
+        },
+    }
+
+
 def init_trace_from_pack(
     pack: dict[str, Any],
     *,
@@ -47,8 +69,20 @@ def init_trace_from_pack(
 ) -> dict[str, Any]:
     meta = pack.get("meta") or {}
     ctx = pack.get("user_context") or {}
-    applied = lenses if lenses is not None else list(FULL_ANALYSIS_LENSES)
+    is_screen = playbook == "watchlist-screen"
+    if lenses is not None:
+        applied = lenses
+    elif is_screen:
+        applied = list(WATCHLIST_SCREEN_LENSES)
+    else:
+        applied = list(FULL_ANALYSIS_LENSES)
     symbols = [str(s["ts_code"]).strip().upper() for s in pack.get("symbols") or [] if s.get("ts_code")]
+    stub_fn = _screen_decision_stub if is_screen else _decision_stub
+    gap_msg = (
+        "screen trace scaffold: fill decisions[].screen via --patch-trace, then --merge-screen-trace"
+        if is_screen
+        else "trace scaffold from --init-trace; fill steps/decisions then --finalize"
+    )
 
     trace: dict[str, Any] = {
         "meta": {
@@ -56,7 +90,7 @@ def init_trace_from_pack(
             "as_of": meta.get("as_of"),
             "skill_version": SKILL_VERSION,
             "rules_version": None,
-            "rules_profile": meta.get("rules_profile"),
+            "rules_profile": "watchlist-screen" if is_screen else meta.get("rules_profile"),
             "playbook": playbook,
             "session_mode": ctx.get("session_mode") or meta.get("session_mode") or "mixed",
             "lenses_applied": applied,
@@ -70,8 +104,8 @@ def init_trace_from_pack(
             "confidence": "low",
         },
         "theme_assessment": [],
-        "decisions": {ts: _decision_stub(ts) for ts in symbols},
+        "decisions": {ts: stub_fn(ts) for ts in symbols},
         "discipline_checklist": [],
-        "gaps": ["trace scaffold from --init-trace; fill steps/decisions then --finalize"],
+        "gaps": [gap_msg],
     }
     return trace

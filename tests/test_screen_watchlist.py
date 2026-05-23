@@ -7,10 +7,12 @@ from core.screen_watchlist import (
     apply_sector_retreat_downgrade,
     build_theme_index,
     cap_watch_pool_by_theme,
+    candidate_row_from_inst,
     detect_sector_retreat,
     load_watchlist_config,
     render_screen_report,
-    score_symbol_base,
+    run_merge_screen_trace,
+    trace_has_ai_ranks,
 )
 
 
@@ -21,24 +23,30 @@ def test_load_config_has_policy():
     assert "BK0427.DC" in cfg["themes"]
 
 
+def _strong_hints() -> dict:
+    return {
+        "structure": "higher_highs_higher_lows",
+        "price_above_ma20": True,
+        "price_above_ma60": True,
+        "ma20_slope_daily": 0.05,
+        "ma60_slope_daily": 0.03,
+        "ma60_slope_weekly": 0.02,
+        "vol_ratio_5_20": 1.1,
+        "distance_from_52w_high_pct": -10,
+        "distance_from_weekly_high_pct": -18,
+        "atr14_pct": 0.04,
+        "_close": 9.23,
+    }
+
+
 def test_1d_drop_downgrades_watch_pool():
-    row = score_symbol_base(
+    row = candidate_row_from_inst(
         "601330.SH",
         "绿色动力",
-        {
-            "structure": "higher_highs_higher_lows",
-            "price_above_ma20": True,
-            "price_above_ma60": True,
-            "ma20_slope_daily": 0.05,
-            "ma60_slope_daily": 0.03,
-            "ma60_slope_weekly": 0.02,
-            "vol_ratio_5_20": 1.1,
-            "distance_from_52w_high_pct": -10,
-            "atr14_pct": 0.04,
-            "_close": 9.23,
-        },
+        _strong_hints(),
         pct_1d=-5.14,
     )
+    row["action"] = "watch_pool"
     policy = load_watchlist_config()["policy"]
     row = apply_policy_row(
         row,
@@ -52,23 +60,13 @@ def test_1d_drop_downgrades_watch_pool():
 
 
 def test_holding_same_theme_blocks_watch_pool():
-    row = score_symbol_base(
+    row = candidate_row_from_inst(
         "000531.SZ",
         "穗恒运A",
-        {
-            "structure": "higher_highs_higher_lows",
-            "price_above_ma20": True,
-            "price_above_ma60": True,
-            "ma20_slope_daily": 0.05,
-            "ma60_slope_daily": 0.03,
-            "ma60_slope_weekly": 0.02,
-            "vol_ratio_5_20": 1.0,
-            "distance_from_52w_high_pct": -10,
-            "atr14_pct": 0.03,
-            "_close": 7.56,
-        },
+        _strong_hints(),
         pct_1d=1.0,
     )
+    row["action"] = "watch_pool"
     policy = load_watchlist_config()["policy"]
     row = apply_policy_row(
         row,
@@ -121,20 +119,21 @@ def test_sector_retreat_downgrades_pool():
     assert rows[0]["action"] == "wait"
 
 
-def test_cap_per_theme():
+def test_cap_per_theme_uses_safety_rank():
     rows = [
-        {"ts_code": "A", "action": "watch_pool", "score": 10, "theme": "t1"},
-        {"ts_code": "B", "action": "watch_pool", "score": 9, "theme": "t1"},
-        {"ts_code": "C", "action": "watch_pool", "score": 8, "theme": "t1"},
+        {"ts_code": "A", "action": "watch_pool", "safety_rank": 90, "theme": "t1"},
+        {"ts_code": "B", "action": "watch_pool", "safety_rank": 80, "theme": "t1"},
+        {"ts_code": "C", "action": "watch_pool", "safety_rank": 70, "theme": "t1"},
     ]
     cap_watch_pool_by_theme(rows, 2)
     assert sum(1 for r in rows if r["action"] == "watch_pool") == 2
+    assert rows[2]["action"] == "wait"
 
 
 def test_report_forbids_buy_wording():
     text = render_screen_report(
         {
-            "meta": {"as_of": "2026-05-20", "run_id": "r1"},
+            "meta": {"as_of": "2026-05-20", "run_id": "r1", "trade_date": "20260520"},
             "market_filter": {"allow_new_trend_trade": "no", "regime_note": ""},
             "watch_pool": [],
             "watch_pullback": [],
@@ -145,3 +144,69 @@ def test_report_forbids_buy_wording():
     )
     assert "非买入推荐" in text
     assert "观察池" in text
+
+
+def test_trace_has_ai_ranks():
+    assert not trace_has_ai_ranks({"decisions": {"A.SH": {"screen": {"action": "pending"}}}})
+    assert trace_has_ai_ranks({"decisions": {"A.SH": {"screen": {"safety_rank": 55}}}})
+
+
+def test_run_merge_screen_trace(tmp_path):
+    pack = {
+        "meta": {"run_id": "t1", "trade_date": "20260520", "as_of": "2026-05-20"},
+        "symbols": [
+            {
+                "ts_code": "600519.SH",
+                "name": "茅台",
+                "bars": {
+                    "daily": [
+                        {
+                            "id": "b1",
+                            "trade_date": "20260520",
+                            "close": 100,
+                            "pct_chg": 1.0,
+                            "high": 101,
+                            "low": 99,
+                            "open": 100,
+                            "vol": 1e6,
+                        }
+                    ]
+                },
+                "derived_hints": _strong_hints(),
+            }
+        ],
+        "slots": {
+            "quality_gate": {
+                "symbols": {"600519.SH": {"tier": "ok", "risk_flags": []}},
+            },
+            "event_risk": {"symbols": {}},
+        },
+    }
+    trace = {
+        "meta": {"playbook": "watchlist-screen", "rules_profile": "watchlist-screen"},
+        "decisions": {
+            "600519.SH": {
+                "facts_used": ["symbol:600519.SH.derived_hints.structure"],
+                "screen": {
+                    "safety_rank": 88,
+                    "action": "watch_pool",
+                    "trap_risk": "low",
+                    "volume_context": "bottom_accumulation",
+                    "rank_rationale": "离周/月前高仍有空间，流动性好",
+                },
+            }
+        },
+    }
+    pack_path = tmp_path / "screen_pack.json"
+    trace_path = tmp_path / "screen_trace.json"
+    import json
+
+    pack_path.write_text(json.dumps(pack, ensure_ascii=False), encoding="utf-8")
+    trace_path.write_text(json.dumps(trace, ensure_ascii=False), encoding="utf-8")
+    result = run_merge_screen_trace(
+        pack_path=pack_path,
+        trace_path=trace_path,
+        out_dir=tmp_path,
+    )
+    assert result["watch_pool"]
+    assert result["watch_pool"][0]["safety_rank"] == 88

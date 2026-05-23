@@ -32,6 +32,21 @@ def test_init_trace_scaffold():
     assert trace["decisions"]["600519.SH"]["entry"]["action"] == "wait"
 
 
+def test_init_trace_watchlist_screen():
+    pack = load_json(FIX_PACK)
+    trace = init_trace_from_pack(pack, playbook="watchlist-screen")
+    assert trace["meta"]["playbook"] == "watchlist-screen"
+    assert "watchlist-safety-rank" in trace["meta"]["lenses_applied"]
+    assert trace["decisions"]["600519.SH"]["screen"]["action"] == "pending"
+
+
+def test_show_pack_screen_brief():
+    pack = load_json(FIX_PACK)
+    text = dispatch_show_pack(pack, "screen-brief", ts_code="600519.SH")
+    assert "600519.SH" in text
+    assert "derived_hints" in text or "screen-brief" in text
+
+
 def test_merge_decisions_patch():
     base = {"decisions": {"600519.SH": {"phase": "unclear", "entry": {"action": "wait"}}}}
     patch = {

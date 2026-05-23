@@ -242,7 +242,7 @@ def _fetch_instrument(
     monthly_bars = _df_to_bars(monthly_df, ts_code, "monthly")[-m_look:]
     daily_bars = daily_bars[-lookback.get("daily", 120) :]
 
-    hints = compute_derived_hints(daily_bars, weekly_bars)
+    hints = compute_derived_hints(daily_bars, weekly_bars, monthly_bars)
     inst: dict[str, Any] = {
         "ts_code": ts_code,
         "name": name,

@@ -138,6 +138,13 @@ def build_fact_index(pack: dict[str, Any]) -> dict[str, Any]:
         for i, flag in enumerate(rec.get("event_flags") or []):
             flat[f"symbol:{ts}.event.flags.{i}"] = str(flag)
 
+    fund = slots.get("fundamentals") or {}
+    for ts, rec in (fund.get("symbols") or {}).items():
+        for key in ("total_mv_yi", "circ_mv_yi", "pe_ttm", "pb", "turnover_rate", "avg_amount_20d_mn"):
+            v = rec.get(key)
+            if isinstance(v, (int, float)):
+                flat[f"symbol:{ts}.fundamentals.{key}"] = float(v)
+
     return {
         "version": "1",
         "rules_version": None,

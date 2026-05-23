@@ -107,8 +107,13 @@ python cli.py --finalize .trend-trade/tmp/trade_trace.json \
 
 python cli.py --list-rules
 
-# 自选观察池（非荐股）
-python cli.py --screen-watchlist --max 30
+# 自选观察池（非荐股 · 全量 AI safety_rank）
+python cli.py --screen-watchlist
+python cli.py --show-pack screen-brief --pack .trend-trade/tmp/screen_pack.json
+python cli.py --init-trace --playbook watchlist-screen --pack .trend-trade/tmp/screen_pack.json --out .trend-trade/tmp/screen_trace.json
+python cli.py --patch-trace .trend-trade/tmp/screen_trace.json --patch -
+python cli.py --validate-trace .trend-trade/tmp/screen_trace.json --pack .trend-trade/tmp/screen_pack.json
+python cli.py --merge-screen-trace .trend-trade/tmp/screen_trace.json --pack .trend-trade/tmp/screen_pack.json
 
 # 自选风险审计（垃圾股/ST/业绩预警）
 python cli.py --audit-watchlist

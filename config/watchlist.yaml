@@ -22,6 +22,8 @@ screening_policy:
   batch_retry: 2
   batch_sleep_sec: 0.8
   archive_runs: true
+  # 方案 A：全自选由 AI 填 safety_rank（见 skill/playbooks/watchlist-screen.md）
+  ai_rank_all_symbols: true
   forbid_output_words:
     - 买入推荐
     - 优先推荐

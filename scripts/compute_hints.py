@@ -28,6 +28,7 @@ def main() -> int:
             inst["derived_hints"] = compute_derived_hints(
                 bars.get("daily", []),
                 bars.get("weekly", []),
+                bars.get("monthly", []),
             )
     with path.open("w", encoding="utf-8") as f:
         json.dump(pack, f, ensure_ascii=False, indent=2)

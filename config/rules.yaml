@@ -16,8 +16,35 @@ profiles:
     min_daily_bars_for_strength: 10
     min_weekly_bars_for_strength: 4
     numeric_tolerance_abs: 0.05
+  watchlist-screen:
+    min_daily_bars_for_phase: 0
+    min_daily_bars_for_strength: 0
+    min_weekly_bars_for_strength: 0
+    numeric_tolerance_abs: 0.05
 
 default_profile: development
+
+# 观察池 AI 排序专用机检（playbook=watchlist-screen 时启用）
+watchlist_screen_rules:
+  - id: SCREEN_SAFETY_RANK_RANGE
+    severity: error
+    description: decisions[].screen.safety_rank 须在 0–100
+    check: screen_safety_rank_range
+
+  - id: SCREEN_TRAP_HIGH_NO_POOL
+    severity: error
+    description: trap_risk=high 时 screen.action 不得为 watch_pool
+    check: screen_trap_high_no_watch_pool
+
+  - id: SCREEN_FACTS_USED
+    severity: error
+    description: 已填 safety_rank 的标的须引用 facts_used（fact_index 键）
+    check: screen_facts_used_when_ranked
+
+  - id: SCREEN_QUALITY_BLOCK_AVOID
+    severity: error
+    description: quality tier=block 时 screen.action 须 avoid
+    check: screen_quality_block_avoid
 
 # 机器规则：id 稳定，便于 CHANGELOG / 测试 / Agent 引用
 machine_rules:

@@ -93,6 +93,59 @@ def format_facts(pack: dict[str, Any], *, ts_code: str | None = None, prefix: st
     return "\n".join(lines) + "\n"
 
 
+def _fmt_bar_line(bar: dict[str, Any]) -> str:
+    td = bar.get("trade_date", "")
+    return (
+        f"  {td} O={bar.get('open')} H={bar.get('high')} L={bar.get('low')} "
+        f"C={bar.get('close')} pct={bar.get('pct_chg')} vol={bar.get('vol')}"
+    )
+
+
+def format_screen_brief(pack: dict[str, Any], *, ts_code: str | None = None) -> str:
+    """Per-symbol brief for AI watchlist ranking (objective numbers from pack)."""
+    flat = (pack.get("fact_index") or {}).get("flat") or {}
+    lines = ["# screen-brief (AI ranking input; numbers from pack only)"]
+    symbols = pack.get("symbols") or []
+    if ts_code:
+        ts = ts_code.strip().upper()
+        symbols = [s for s in symbols if str(s.get("ts_code", "")).strip().upper() == ts]
+
+    for inst in symbols:
+        ts = str(inst.get("ts_code", "")).strip().upper()
+        name = inst.get("name", "")
+        lines.append(f"\n## {ts} {name}")
+        hints = inst.get("derived_hints") or {}
+        hint_keys = sorted(k for k in hints if not k.startswith("_"))
+        for k in hint_keys:
+            v = hints[k]
+            if isinstance(v, (int, float, bool, str)):
+                lines.append(f"- derived_hints.{k}: {v}")
+            elif isinstance(v, list):
+                lines.append(f"- derived_hints.{k}: {v[:5]}")
+        for prefix in (f"symbol:{ts}.fundamentals.", f"symbol:{ts}.quality.", f"symbol:{ts}.event."):
+            for k in sorted(flat.keys()):
+                if k.startswith(prefix):
+                    lines.append(f"- {k}: {flat[k]}")
+        theme = (inst.get("theme_meta") or {}).get("theme_id") or (inst.get("theme_meta") or {}).get("theme")
+        if theme:
+            lines.append(f"- theme: {theme}")
+            role = (inst.get("theme_meta") or {}).get("role")
+            if role:
+                lines.append(f"- theme_role: {role}")
+        bars = inst.get("bars") or {}
+        weekly = bars.get("weekly") or []
+        monthly = bars.get("monthly") or []
+        if weekly:
+            lines.append("- recent_weekly_bars (last 8):")
+            for b in weekly[-8:]:
+                lines.append(_fmt_bar_line(b))
+        if monthly:
+            lines.append("- recent_monthly_bars (last 6):")
+            for b in monthly[-6:]:
+                lines.append(_fmt_bar_line(b))
+    return "\n".join(lines) + "\n"
+
+
 def dispatch_show_pack(pack: dict[str, Any], section: str, *, ts_code: str | None = None) -> str:
     section = (section or "holdings").strip().lower()
     if section in ("holdings", "holding", "positions"):
@@ -101,4 +154,8 @@ def dispatch_show_pack(pack: dict[str, Any], section: str, *, ts_code: str | Non
         return format_symbols(pack)
     if section in ("facts", "fact", "flat"):
         return format_facts(pack, ts_code=ts_code)
-    raise ValueError(f"Unknown --show-pack section: {section} (use holdings|symbols|facts)")
+    if section in ("screen-brief", "screen_brief", "screen"):
+        return format_screen_brief(pack, ts_code=ts_code)
+    raise ValueError(
+        f"Unknown --show-pack section: {section} (use holdings|symbols|facts|screen-brief)"
+    )

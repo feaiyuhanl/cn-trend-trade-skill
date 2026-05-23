@@ -11,10 +11,26 @@ def _closes(bars: list[dict[str, Any]]) -> np.ndarray:
     return np.array([float(b["close"]) for b in bars], dtype=float)
 
 
+def _highs(bars: list[dict[str, Any]]) -> np.ndarray:
+    if not bars:
+        return np.array([])
+    return np.array([float(b["high"]) for b in bars], dtype=float)
+
+
 def _vols(bars: list[dict[str, Any]]) -> np.ndarray:
     if not bars:
         return np.array([])
     return np.array([float(b["vol"] or 0) for b in bars], dtype=float)
+
+
+def _amounts(bars: list[dict[str, Any]]) -> np.ndarray:
+    if not bars:
+        return np.array([])
+    out = []
+    for b in bars:
+        a = b.get("amount")
+        out.append(float(a) if a is not None else 0.0)
+    return np.array(out, dtype=float)
 
 
 def _sma(arr: np.ndarray, n: int) -> float | None:
@@ -31,6 +47,16 @@ def _slope(arr: np.ndarray, ma_n: int, lookback: int = 5) -> float | None:
     if ma_prev == 0:
         return None
     return float((ma_now - ma_prev) / ma_prev)
+
+
+def _distance_from_high_pct(series: np.ndarray, last: float, lookback: int) -> float | None:
+    if len(series) < 1 or last <= 0:
+        return None
+    window = series[-min(lookback, len(series)) :]
+    peak = float(np.max(window))
+    if peak <= 0:
+        return None
+    return round((last / peak - 1) * 100, 4)
 
 
 def _atr14(bars: list[dict[str, Any]]) -> float | None:
@@ -65,11 +91,31 @@ def _structure_label(bars: list[dict[str, Any]], window: int = 20) -> str:
     return "range_bound"
 
 
+def _up_days_with_expand_vol(daily_bars: list[dict[str, Any]], window: int = 10) -> int | None:
+    if len(daily_bars) < window + 1:
+        return None
+    seg = daily_bars[-window:]
+    v20 = _vols(daily_bars)
+    if len(v20) < 20:
+        return None
+    base = float(np.mean(v20[-20:]))
+    if base <= 0:
+        return None
+    count = 0
+    for b in seg:
+        pct = b.get("pct_chg")
+        vol = float(b.get("vol") or 0)
+        if pct is not None and float(pct) > 0 and vol / base >= 1.15:
+            count += 1
+    return count
+
+
 def compute_derived_hints(
     daily_bars: list[dict[str, Any]],
     weekly_bars: list[dict[str, Any]] | None = None,
+    monthly_bars: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Numeric hints only — no buy/sell signals."""
+    """Numeric hints only — no buy/sell signals or tier labels."""
     hints: dict[str, Any] = {}
     closes = _closes(daily_bars)
     vols = _vols(daily_bars)
@@ -100,6 +146,17 @@ def compute_derived_hints(
         if v20 > 0:
             hints["vol_ratio_5_20"] = round(v5 / v20, 4)
 
+    amounts = _amounts(daily_bars)
+    if len(amounts) >= 20:
+        a5 = float(np.mean(amounts[-5:]))
+        a20 = float(np.mean(amounts[-20:]))
+        if a20 > 0:
+            hints["amount_ratio_5_20"] = round(a5 / a20, 4)
+
+    up_exp = _up_days_with_expand_vol(daily_bars)
+    if up_exp is not None:
+        hints["up_days_vol_expand_10d"] = up_exp
+
     atr = _atr14(daily_bars)
     if atr is not None and last_close > 0:
         hints["atr14"] = round(atr, 4)
@@ -111,16 +168,43 @@ def compute_derived_hints(
             hints["distance_from_52w_high_pct"] = round((last_close / high_52w - 1) * 100, 4)
 
     if len(daily_bars) >= 40:
-        highs = [float(b["high"]) for b in daily_bars[-60:]]
-        sorted_h = sorted(set(round(h, 2) for h in highs), reverse=True)
+        highs_d = [float(b["high"]) for b in daily_bars[-60:]]
+        sorted_h = sorted(set(round(h, 2) for h in highs_d), reverse=True)
         hints["resistance_levels"] = sorted_h[:3]
 
     hints["structure"] = _structure_label(daily_bars)
 
     if weekly_bars:
         wcloses = _closes(weekly_bars)
-        ws60 = _slope(wcloses, 10, 3) if len(wcloses) >= 13 else None
-        if ws60 is not None:
-            hints["ma60_slope_weekly"] = round(ws60, 6)
+        whighs = _highs(weekly_bars)
+        if len(wcloses) >= 1:
+            hints["weekly_bar_count"] = len(weekly_bars)
+            w_last = float(wcloses[-1])
+            dist_w = _distance_from_high_pct(whighs, w_last, 52)
+            if dist_w is not None:
+                hints["distance_from_weekly_high_pct"] = dist_w
+            ws10 = _slope(wcloses, 10, 3) if len(wcloses) >= 13 else None
+            if ws10 is not None:
+                hints["ma10_slope_weekly"] = round(ws10, 6)
+            wma20 = _sma(wcloses, 20) if len(wcloses) >= 20 else _sma(wcloses, 10)
+            if wma20 is not None:
+                hints["price_above_weekly_ma20"] = w_last > wma20
+
+    if monthly_bars:
+        mcloses = _closes(monthly_bars)
+        mhighs = _highs(monthly_bars)
+        if len(mcloses) >= 1:
+            hints["monthly_bar_count"] = len(monthly_bars)
+            m_last = float(mcloses[-1])
+            dist_m = _distance_from_high_pct(mhighs, m_last, 24)
+            if dist_m is not None:
+                hints["distance_from_monthly_high_pct"] = dist_m
+            ms6 = _slope(mcloses, 6, 2) if len(mcloses) >= 8 else None
+            if ms6 is not None:
+                hints["ma6_slope_monthly"] = round(ms6, 6)
+
+    # Legacy alias
+    if weekly_bars and "ma10_slope_weekly" in hints:
+        hints["ma60_slope_weekly"] = hints["ma10_slope_weekly"]
 
     return hints

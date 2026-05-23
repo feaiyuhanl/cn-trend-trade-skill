@@ -12,6 +12,7 @@ from core.market_sentiment import (
     fixture_sentiment,
     merge_into_breadth,
 )
+from core.fundamentals import build_fundamentals_slot
 from core.quality_gate import evaluate_symbol, evaluate_symbols as eval_quality
 from core.quality_gate import load_watchlist_risk
 from core.theme_graph import (
@@ -155,6 +156,13 @@ def enrich_a_share_context(pack: dict[str, Any]) -> dict[str, Any]:
         else:
             pack["slots"]["quality_gate"] = qg
         pack["slots"]["event_risk"] = er or fixture_event_risk(symbols)
+
+    pack["slots"]["fundamentals"] = build_fundamentals_slot(
+        symbols,
+        pro=pro,
+        pack_symbols=pack.get("symbols", []),
+        mode=mode,
+    )
 
     # Merge sector_retreats into trace-friendly market_filter hint on pack
     tc = pack["slots"]["theme_context"]
