@@ -1,0 +1,13 @@
+# Tushare 并发拉取（在积分限速内尽量打满）
+# 常见档位：200/min（基础）| 400–500/min（高积分）| 按实际积分调 calls_per_minute
+version: "1.0.0"
+
+parallel_enabled: true
+max_workers: 16
+calls_per_minute: 450
+
+# 日 K 磁盘缓存（同日重复跑 screen 可显著加速）
+daily_bar_cache: true
+
+# screen 超过此数量走 bulk 并发拉取（替代逐批 sleep 循环）
+bulk_fetch_min_symbols: 50

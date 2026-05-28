@@ -91,7 +91,7 @@ def _load_fixture_enrich() -> dict[str, Any]:
         return json.load(f)
 
 
-def enrich_a_share_context(pack: dict[str, Any]) -> dict[str, Any]:
+def enrich_a_share_context(pack: dict[str, Any], *, fetch_retry: dict[str, Any] | None = None, fetch_cfg: dict[str, Any] | None = None, skip_chronic_loss: bool = False, skip_missing_leaders: bool = False) -> dict[str, Any]:
     """
     Populate pack.market_sentiment and pack.slots:
       theme_context, quality_gate, event_risk
@@ -106,21 +106,31 @@ def enrich_a_share_context(pack: dict[str, Any]) -> dict[str, Any]:
     pack["slots"]["theme_resolution"] = resolve_themes_for_pack(pack, pro)
 
     if mode == "live" and pro:
-        _fetch_missing_leaders(pack, pro)
+        if not skip_missing_leaders:
+            _fetch_missing_leaders(pack, pro)
         symbols = [s["ts_code"] for s in pack.get("symbols", [])]
 
     # Theme lifecycle (after optional leader bars appended)
     pack["slots"]["theme_context"] = build_theme_context(pack)
 
     # Sentiment
+    retry_cfg = fetch_retry or {}
+    max_attempts = int(retry_cfg.get("max_attempts") or 3)
+    backoff = retry_cfg.get("backoff_sec") or [65, 90, 120]
     if mode == "live" and pro:
-        sent = fetch_market_sentiment(pro)
+        from core.market_sentiment import fetch_market_sentiment_with_retry
+
+        sent, fail_reason = fetch_market_sentiment_with_retry(
+            pro, max_attempts=max_attempts, backoff_sec=backoff
+        )
         if sent:
             pack["market_sentiment"] = sent
             merge_into_breadth(pack, sent)
             pack.setdefault("meta", {}).setdefault("fetch_status", {})["sentiment"] = "ok"
         else:
             pack.setdefault("meta", {}).setdefault("fetch_status", {})["sentiment"] = "skip"
+            msg = fail_reason or "market_sentiment fetch failed"
+            pack.setdefault("meta", {}).setdefault("fetch_messages", []).append(msg)
     else:
         fix = _load_fixture_enrich()
         pack["market_sentiment"] = fix.get("market_sentiment") or fixture_sentiment()
@@ -132,8 +142,10 @@ def enrich_a_share_context(pack: dict[str, Any]) -> dict[str, Any]:
 
     # Quality + events per symbol
     if mode == "live" and pro:
-        pack["slots"]["quality_gate"] = eval_quality(symbols, pro=pro, pack_mode="live")
-        pack["slots"]["event_risk"] = eval_events(symbols, pro=pro, pack_mode="live")
+        pack["slots"]["quality_gate"] = eval_quality(
+            symbols, pro=pro, pack_mode="live", skip_chronic_loss=skip_chronic_loss, fetch_cfg=fetch_cfg
+        )
+        pack["slots"]["event_risk"] = eval_events(symbols, pro=pro, pack_mode="live", fetch_cfg=fetch_cfg)
         pack.setdefault("meta", {}).setdefault("fetch_status", {})["quality_gate"] = "ok"
         pack.setdefault("meta", {}).setdefault("fetch_status", {})["event_risk"] = "ok"
     else:

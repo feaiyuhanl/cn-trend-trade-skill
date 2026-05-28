@@ -30,12 +30,13 @@ def _daily_df(n: int = 60, base: float = 100.0) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+@patch("core.fetch_live.load_stock_name_map")
 @patch("core.fetch_live._get_pro")
 @patch("core.fetch_live.resolve_indices_for_profile")
-def test_build_live_pack_mock(mock_indices, mock_pro):
+def test_build_live_pack_mock(mock_indices, mock_pro, mock_names):
     pro = MagicMock()
     mock_pro.return_value = pro
-    pro.stock_basic.return_value = pd.DataFrame([{"ts_code": "600519.SH", "name": "贵州茅台"}])
+    mock_names.return_value = {"600519.SH": "贵州茅台"}
     pro.daily.return_value = _daily_df()
     pro.index_daily.return_value = _daily_df(base=3000)
     pro.limit_list_d.return_value = pd.DataFrame()
@@ -43,7 +44,12 @@ def test_build_live_pack_mock(mock_indices, mock_pro):
         {"ts_code": "000300.SH", "name": "沪深300", "index_group": "size_segment", "category": "size_segment"}
     ]
 
-    pack = build_live_pack(symbols=["600519.SH"], indices_profile="minimal")
+    pack = build_live_pack(
+        symbols=["600519.SH"],
+        indices_profile="minimal",
+        enrich=False,
+        fetch_breadth=False,
+    )
     assert len(pack["symbols"]) == 1
     assert pack["symbols"][0]["ts_code"] == "600519.SH"
     assert pack["meta"]["mode"] == "live"

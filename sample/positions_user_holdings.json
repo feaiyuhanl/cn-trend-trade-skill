@@ -8,29 +8,29 @@
   },
   "positions": [
     {
-      "ts_code": "601016.SH",
-      "cost": null,
-      "shares": null,
-      "entry_date": null,
-      "stop_price": null,
-      "notes": "节能风电；守 MA20≈4.71、前低≈4.99；禁止加仓"
-    },
-    {
       "ts_code": "000591.SZ",
       "cost": null,
       "shares": null,
       "entry_date": null,
       "stop_price": null,
-      "notes": "太阳能(000591)；守 MA20≈5.51；与601016同主题"
+      "notes": "太阳能；守 MA20；新能源/电力链"
     },
     {
-      "ts_code": "000997.SZ",
+      "ts_code": "002049.SZ",
       "cost": null,
       "shares": null,
       "entry_date": null,
       "stop_price": null,
-      "notes": "新大陆；守 MA20≈21.36；与电力链低相关"
+      "notes": "紫光国微；守 MA20；半导体链"
+    },
+    {
+      "ts_code": "605358.SH",
+      "cost": null,
+      "shares": null,
+      "entry_date": null,
+      "stop_price": null,
+      "notes": "立昂微；近前高警惕站岗；半导体链"
     }
   ],
-  "user_notes": "见 config/my_discipline.yaml；观察池≠买入。请补全 cost/shares/stop 以启用浮盈亏机检。"
+  "user_notes": "当前持仓：太阳能、紫光国微、立昂微。请补全 cost/shares/stop 以启用浮盈亏机检。"
 }

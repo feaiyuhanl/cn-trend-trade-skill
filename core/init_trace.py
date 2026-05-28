@@ -25,6 +25,7 @@ WATCHLIST_SCREEN_LENSES = [
     "market-sentiment",
     "watchlist-relative-position",
     "watchlist-safety-rank",
+    "watchlist-observation-framework",
 ]
 
 
@@ -57,6 +58,7 @@ def _screen_decision_stub(ts_code: str) -> dict[str, Any]:
             "trap_risk": "unknown",
             "fundamental_note": "",
             "rank_rationale": "",
+            "observation_plan": {},
         },
     }
 

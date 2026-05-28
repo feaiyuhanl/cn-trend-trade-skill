@@ -85,7 +85,7 @@ def _forecast_loss(pro, ts_code: str, cfg: dict[str, Any]) -> tuple[bool, str]:
     return False, ""
 
 
-def evaluate_symbol(ts_code: str, *, pro=None, cfg: dict[str, Any] | None = None) -> dict[str, Any]:
+def evaluate_symbol(ts_code: str, *, pro=None, cfg: dict[str, Any] | None = None, rate_limiter=None) -> dict[str, Any]:
     cfg = cfg or _load_config()
     ts = ts_code.strip().upper()
     flags: list[str] = []
@@ -93,6 +93,8 @@ def evaluate_symbol(ts_code: str, *, pro=None, cfg: dict[str, Any] | None = None
     block_entry = False
 
     if pro:
+        if rate_limiter is not None:
+            rate_limiter.wait()
         in_win, note = _in_earnings_window(pro, ts, cfg)
         if in_win:
             flags.append("earnings_window")
@@ -100,12 +102,16 @@ def evaluate_symbol(ts_code: str, *, pro=None, cfg: dict[str, Any] | None = None
             if cfg.get("earnings", {}).get("block_entry_in_window"):
                 block_entry = True
 
+        if rate_limiter is not None:
+            rate_limiter.wait()
         red, rnote = _has_reduction(pro, ts, cfg)
         if red:
             flags.append("reduction")
             notes.append(rnote)
             block_entry = True
 
+        if rate_limiter is not None:
+            rate_limiter.wait()
         loss, lnote = _forecast_loss(pro, ts, cfg)
         if loss:
             flags.append("forecast_loss")
@@ -120,9 +126,28 @@ def evaluate_symbol(ts_code: str, *, pro=None, cfg: dict[str, Any] | None = None
     }
 
 
-def evaluate_symbols(ts_codes: list[str], *, pro=None, pack_mode: str = "live") -> dict[str, Any]:
+def evaluate_symbols(ts_codes: list[str], *, pro=None, pack_mode: str = "live", fetch_cfg: dict[str, Any] | None = None) -> dict[str, Any]:
     cfg = _load_config()
-    by_code = {ts.strip().upper(): evaluate_symbol(ts, pro=pro, cfg=cfg) for ts in ts_codes}
+    parallel = bool(pro) and len(ts_codes) > 1
+    fetch_cfg = fetch_cfg or {}
+    if parallel and fetch_cfg.get("parallel_enabled", True):
+        from core.tushare_rate_limit import MinuteRateLimiter, load_fetch_concurrency_config, parallel_map
+
+        fcfg = {**load_fetch_concurrency_config(), **fetch_cfg}
+        limiter = MinuteRateLimiter(int(fcfg.get("calls_per_minute") or 450))
+
+        def _eval_one(ts: str) -> dict[str, Any]:
+            return evaluate_symbol(ts, pro=pro, cfg=cfg, rate_limiter=limiter)
+
+        by_code = parallel_map(
+            [t.strip().upper() for t in ts_codes],
+            _eval_one,
+            max_workers=int(fcfg.get("max_workers") or 16),
+            rate_limiter=None,
+        )
+        by_code = {k: v for k, v in by_code.items() if v is not None}
+    else:
+        by_code = {ts.strip().upper(): evaluate_symbol(ts, pro=pro, cfg=cfg) for ts in ts_codes}
     blocked = [t for t, v in by_code.items() if v["block_entry"]]
     return {
         "version": cfg.get("version", "1.0.0"),

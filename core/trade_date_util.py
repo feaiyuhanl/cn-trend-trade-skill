@@ -14,6 +14,13 @@ from typing import Any
 SESSION_CLOSE_HOUR = 15
 SESSION_DATA_READY_MINUTE = 5
 
+# Bulk screen: require this fraction of symbols to have the expected session bar
+DEFAULT_MIN_SYMBOL_SESSION_RATIO = 0.95
+
+
+class DataStaleError(RuntimeError):
+    """Raised when live data is behind expected_trade_session_date (fail-fast)."""
+
 
 def expected_trade_session_date(now: datetime | None = None) -> str:
     """Latest session whose daily bar we should use (weekends roll back)."""
@@ -86,18 +93,98 @@ def resolve_latest_trade_date(
     return expected
 
 
+def _last_bar_trade_date(inst: dict[str, Any]) -> str | None:
+    daily = (inst.get("bars") or {}).get("daily") or []
+    if not daily:
+        return None
+    td = str(daily[-1].get("trade_date") or "")
+    return td if len(td) == 8 else None
+
+
 def max_trade_date_from_pack(pack: dict[str, Any]) -> str | None:
     """Max trade_date across indices and symbols daily bars."""
     best = ""
     for key in ("indices", "symbols"):
         for inst in pack.get(key) or []:
-            daily = (inst.get("bars") or {}).get("daily") or []
-            if not daily:
-                continue
-            td = str(daily[-1].get("trade_date") or "")
-            if len(td) == 8 and td > best:
+            td = _last_bar_trade_date(inst)
+            if td and td > best:
                 best = td
     return best or None
+
+
+def max_trade_date_from_indices(pack: dict[str, Any]) -> str | None:
+    best = ""
+    for inst in pack.get("indices") or []:
+        td = _last_bar_trade_date(inst)
+        if td and td > best:
+            best = td
+    return best or None
+
+
+def symbol_session_coverage(
+    pack: dict[str, Any],
+    *,
+    expected: str | None = None,
+) -> tuple[int, int, float]:
+    """Count symbols whose last daily bar is on or after expected session."""
+    expected = expected or expected_trade_session_date()
+    fresh = 0
+    total = 0
+    for inst in pack.get("symbols") or []:
+        td = _last_bar_trade_date(inst)
+        if not td:
+            continue
+        total += 1
+        if td >= expected:
+            fresh += 1
+    ratio = (fresh / total) if total else 1.0
+    return fresh, total, ratio
+
+
+def assess_pack_data_session(
+    pack: dict[str, Any],
+    *,
+    expected: str | None = None,
+    min_symbol_ratio: float = DEFAULT_MIN_SYMBOL_SESSION_RATIO,
+) -> dict[str, Any]:
+    """Decide if pack bars match the session we should be trading on.
+
+    Stale when benchmark indices OR enough individual symbols lag expected session.
+    Using only global max(bar dates) would mark fresh when indices updated but
+    thousands of stocks are still on the previous day (common with disk cache).
+    """
+    expected = expected or expected_trade_session_date()
+    index_td = max_trade_date_from_indices(pack) or ""
+    fresh, total, ratio = symbol_session_coverage(pack, expected=expected)
+    pack_max = max_trade_date_from_pack(pack) or ""
+
+    reasons: list[str] = []
+    if not index_td or index_td < expected:
+        reasons.append(
+            f"大盘指数 K 线仅到 {index_td or '无'}，应使用 {expected}"
+        )
+    if total and ratio < min_symbol_ratio:
+        reasons.append(
+            f"个股仅 {fresh}/{total} 只含 {expected} 日线"
+            f"（需 ≥{min_symbol_ratio:.0%}）"
+        )
+
+    stale = bool(reasons)
+    # Authoritative session for regime / MA: index bar date when present
+    trade_date = index_td or pack_max or expected
+
+    return {
+        "expected_trade_date": expected,
+        "trade_date": trade_date,
+        "index_trade_date": index_td or None,
+        "pack_max_trade_date": pack_max or None,
+        "symbol_fresh_count": fresh,
+        "symbol_total": total,
+        "symbol_fresh_ratio": round(ratio, 4),
+        "min_symbol_session_ratio": min_symbol_ratio,
+        "data_stale": stale,
+        "data_stale_reasons": reasons,
+    }
 
 
 def build_data_stale_notice(
@@ -105,6 +192,10 @@ def build_data_stale_notice(
     expected_trade_date: str,
     actual_trade_date: str,
     fetch_messages: list[str] | None = None,
+    stale_reasons: list[str] | None = None,
+    symbol_fresh_ratio: float | None = None,
+    symbol_fresh_count: int | None = None,
+    symbol_total: int | None = None,
 ) -> dict[str, str]:
     """Human-readable stale-data explanation (external lag vs transient errors)."""
     msgs = fetch_messages or []
@@ -137,10 +228,19 @@ def build_data_stale_notice(
     retry = (
         "请稍后重试：建议首次在 15:30–17:00 再跑；若仍滞后，可 18:00 后或次日开盘前再跑 "
         "`python cli.py --screen-watchlist` / `--assemble`。"
+        "勿使用 `--allow-stale` 强行继续（仅调试）。"
     )
     headline = (
-        f"行情滞后：应使用交易日 {expected_trade_date}，当前 K 线仅到 {actual_trade_date}。"
+        f"行情滞后：应使用交易日 {expected_trade_date}，"
+        f"指数/有效 K 线仅到 {actual_trade_date}。"
     )
+    if stale_reasons:
+        headline += " " + "；".join(stale_reasons)
+    elif symbol_fresh_ratio is not None and symbol_total:
+        headline += (
+            f" 个股含当日 K 线：{symbol_fresh_count}/{symbol_total}"
+            f"（{symbol_fresh_ratio:.1%}）。"
+        )
     return {
         "data_stale_cause": cause,
         "data_stale_headline": headline,
@@ -150,19 +250,45 @@ def build_data_stale_notice(
     }
 
 
-def attach_pack_trade_date_meta(pack: dict[str, Any], *, pro=None) -> None:
+def attach_pack_trade_date_meta(
+    pack: dict[str, Any],
+    *,
+    pro=None,
+    min_symbol_ratio: float = DEFAULT_MIN_SYMBOL_SESSION_RATIO,
+) -> None:
     """Set meta.trade_date / expected_trade_date / data_stale on pack."""
     meta = pack.setdefault("meta", {})
-    expected = expected_trade_session_date()
-    data_td = max_trade_date_from_pack(pack) or resolve_latest_trade_date(pro, pack=pack)
-    meta["expected_trade_date"] = expected
-    meta["trade_date"] = data_td
-    stale = bool(data_td and data_td < expected)
-    meta["data_stale"] = stale
-    if stale:
+    assessment = assess_pack_data_session(pack, min_symbol_ratio=min_symbol_ratio)
+    meta.update(assessment)
+    if assessment["data_stale"]:
         notice = build_data_stale_notice(
-            expected_trade_date=expected,
-            actual_trade_date=data_td,
+            expected_trade_date=assessment["expected_trade_date"],
+            actual_trade_date=str(assessment["trade_date"]),
             fetch_messages=list(meta.get("fetch_messages") or []),
+            stale_reasons=list(assessment.get("data_stale_reasons") or []),
+            symbol_fresh_ratio=assessment.get("symbol_fresh_ratio"),
+            symbol_fresh_count=assessment.get("symbol_fresh_count"),
+            symbol_total=assessment.get("symbol_total"),
         )
         meta.update(notice)
+
+
+def assert_pack_session_fresh(
+    pack: dict[str, Any],
+    *,
+    fail_on_stale: bool = True,
+    min_symbol_ratio: float = DEFAULT_MIN_SYMBOL_SESSION_RATIO,
+) -> None:
+    """Re-check freshness and abort live runs when data lags expected session."""
+    attach_pack_trade_date_meta(pack, min_symbol_ratio=min_symbol_ratio)
+    if not fail_on_stale:
+        return
+    meta = pack.get("meta") or {}
+    if meta.get("data_stale"):
+        raise DataStaleError(
+            meta.get("data_stale_notice")
+            or (
+                f"行情未刷新到 {meta.get('expected_trade_date')}，"
+                f"当前仅 {meta.get('trade_date')}；已中止，请稍后重试。"
+            )
+        )

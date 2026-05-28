@@ -17,7 +17,7 @@ pip install -r requirements.txt
 | **Tushare Pro** | 日线 `daily` / `index_daily` 常在收盘后 **30 分钟～数小时** 才入库；15:05 立刻跑可能仍只有上一交易日。 |
 | **akshare** | 用于在 Tushare 缺 bar 时**补当日 K 线**；若接口尚未更新或网络中断，补数为空，程序会标 `data_stale`。 |
 
-程序逻辑：15:05 后起认为「应使用当日」`expected_trade_date`；若 K 线最大 `trade_date` 仍小于该日 → **`data_stale`**，报告/CLI 提示 **稍后重试**（建议 15:30–17:00，仍不行则 18:00 后或次日开盘前）。
+程序逻辑：15:05 后起认为「应使用当日」`expected_trade_date`。live 跑批**默认先预检**（指数 + 样本股，不用磁盘缓存）；若指数 K 线或 ≥95% 个股缺当日 bar → **`data_stale` + 退出码 1**（`--allow-stale` 仅调试用）。全市场扫描前即失败，避免跑完 3000 只仍是昨日数据。建议 15:30–17:00 重试。
 
 当日 K 线拉取：`fetch_live` 先 Tushare，缺失再 akshare（见 `requirements.txt`）。
 

@@ -1,0 +1,23 @@
+# 相对位置过滤（中低位趋势修复区，参考新大陆模式）
+version: "1.0.0"
+
+thresholds:
+  near_high_weekly_pct: -12
+  near_high_monthly_pct: -12
+  near_high_52w_pct: -8
+  far_from_high_weekly_pct: -20
+
+mid_low_band:
+  min_percentile_2y: 25
+  max_percentile_2y: 60
+  max_52w_high_proximity_pct: -10
+  min_weekly_high_distance_pct: -15
+  require_hh_hl: true
+  require_above_ma20: true
+  prefer_mid_low_bonus: 10
+
+watch_pool_gate:
+  reject_if_percentile_2y_above: 65
+  reject_if_52w_high_within_pct: -8
+  reject_if_weekly_high_within_pct: -12
+  downgrade_to: watch_pullback

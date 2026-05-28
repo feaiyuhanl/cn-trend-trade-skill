@@ -163,9 +163,16 @@ def compute_derived_hints(
         hints["atr14_pct"] = round(atr / last_close, 6)
 
     if len(closes) >= 20:
-        high_52w = float(np.max(closes[-min(252, len(closes)) :]))
+        window = closes[-min(252, len(closes)) :]
+        high_52w = float(np.max(window))
+        low_52w = float(np.min(window))
         if high_52w > 0:
             hints["distance_from_52w_high_pct"] = round((last_close / high_52w - 1) * 100, 4)
+        if low_52w > 0:
+            hints["distance_from_52w_low_pct"] = round((last_close / low_52w - 1) * 100, 4)
+        if high_52w > low_52w:
+            pctile = (last_close - low_52w) / (high_52w - low_52w) * 100
+            hints["price_percentile_2y"] = round(float(pctile), 4)
 
     if len(daily_bars) >= 40:
         highs_d = [float(b["high"]) for b in daily_bars[-60:]]

@@ -44,11 +44,11 @@ def _parse_lianban(row: Any) -> int:
     return 1
 
 
-def fetch_market_sentiment(pro) -> dict[str, Any] | None:
+def fetch_market_sentiment(pro, *, trade_date: str | None = None) -> dict[str, Any] | None:
     """Build market_sentiment from Tushare limit_list_d (+ stock_basic industry)."""
     import pandas as pd
 
-    trade_date = _latest_trade_date(pro)
+    trade_date = trade_date or _latest_trade_date(pro)
     if not trade_date:
         return None
 
@@ -139,6 +139,32 @@ def fetch_market_sentiment(pro) -> dict[str, Any] | None:
         "entry_policy": entry_policy,
         "source_id": "tushare",
     }
+
+
+def fetch_market_sentiment_with_retry(
+    pro,
+    *,
+    max_attempts: int = 3,
+    backoff_sec: tuple[float, ...] | list[float] = (65.0, 90.0, 120.0),
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Fetch sentiment with backoff on rate-limit / transient errors."""
+    import time
+
+    last_err = ""
+    attempts = max(1, int(max_attempts))
+    delays = list(backoff_sec) if backoff_sec else [65.0]
+    for attempt in range(attempts):
+        sent = fetch_market_sentiment(pro)
+        if sent:
+            return sent, None
+        last_err = "limit_list_d 返回空或接口不可用"
+        if attempt + 1 < attempts:
+            wait = delays[min(attempt, len(delays) - 1)]
+            time.sleep(wait)
+    return None, (
+        f"market_sentiment 获取失败（已重试 {attempts} 次）：{last_err}。"
+        "常见原因：Tushare limit_list_d 频率超限(1次/分钟)或当日涨跌停列表未更新"
+    )
 
 
 def merge_into_breadth(pack: dict[str, Any], sentiment: dict[str, Any] | None) -> None:

@@ -40,6 +40,7 @@ from core.recommendation_log import (  # noqa: E402
 from core.review_brief import build_review_brief  # noqa: E402
 from core.rules_engine import load_rules_config  # noqa: E402
 from core.screen_watchlist import run_merge_screen_trace, run_screen  # noqa: E402
+from core.universe_mainboard import export_mainboard_symbols_yaml  # noqa: E402
 from core.watchlist_risk_audit import run_audit as run_watchlist_risk_audit  # noqa: E402
 from core.validate import (  # noqa: E402
     load_json,
@@ -68,6 +69,7 @@ def cmd_assemble(args: argparse.Namespace) -> int:
             portfolio_equity=args.equity,
             risk_pct=args.risk_pct,
             indices_profile=args.indices_profile,
+            fail_on_stale=not getattr(args, "allow_stale", False),
         )
     except (ValueError, RuntimeError) as e:
         print(f"FAIL {e}", file=sys.stderr)
@@ -194,6 +196,25 @@ def cmd_audit_watchlist(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_export_mainboard_universe(args: argparse.Namespace) -> int:
+    out = Path(args.export_mainboard_universe)
+    try:
+        result = export_mainboard_symbols_yaml(out)
+    except RuntimeError as e:
+        print(f"FAIL {e}", file=sys.stderr)
+        return 1
+    except Exception as e:
+        print(f"FAIL {e}", file=sys.stderr)
+        return 1
+    meta = result.get("meta") or {}
+    print(f"OK exported {result.get('count')} symbols -> {result.get('path')}")
+    print(f"  board_count={meta.get('board_count')} after_liquidity={meta.get('after_liquidity')}")
+    clf = meta.get("chronic_loss_filter") or {}
+    if clf.get("removed_count") is not None:
+        print(f"  chronic_loss removed={clf.get('removed_count')} final={meta.get('final_count')}")
+    return 0
+
+
 def cmd_screen_watchlist(args: argparse.Namespace) -> int:
     symbols = [s.strip() for s in args.symbols.split(",")] if args.symbols else None
     try:
@@ -205,6 +226,9 @@ def cmd_screen_watchlist(args: argparse.Namespace) -> int:
             out_dir=Path(args.out_dir) if args.out_dir else None,
             screen_trace_path=Path(args.screen_trace) if getattr(args, "screen_trace", None) else None,
             data_only=getattr(args, "screen_data_only", False),
+            universe_mode=getattr(args, "universe_mode", None),
+            trend_top_n=getattr(args, "top", None),
+            fail_on_stale=not getattr(args, "allow_stale", False),
         )
     except RuntimeError as e:
         print(f"FAIL {e}", file=sys.stderr)
@@ -221,19 +245,35 @@ def cmd_screen_watchlist(args: argparse.Namespace) -> int:
             if "ai_rank" in g or "data_only" in g:
                 print(f"  NOTE {g}")
     if result["meta"].get("data_stale"):
-        print("  WARN data_stale: 外部行情未刷新到当日收盘，结论勿当作今日盘面", file=sys.stderr)
+        print("  FAIL data_stale: 外部行情未刷新到当日收盘，已中止或结论无效", file=sys.stderr)
         for key in ("data_stale_headline", "data_stale_detail", "data_stale_retry"):
             line = result["meta"].get(key)
             if line:
                 print(f"    {line}", file=sys.stderr)
+        if not getattr(args, "allow_stale", False):
+            return 1
     print(f"  watch_pool: {len(result.get('watch_pool') or [])}")
+    trend = result.get("trend_top10") or {}
+    if trend.get("stocks"):
+        print(f"  trend_top10 ({trend.get('scope')}): {len(trend['stocks'])}")
+        for s in trend["stocks"][:3]:
+            print(
+                f"    #{s.get('rank')} {s.get('ts_code')} rank={s.get('safety_rank')} "
+                f"band={s.get('position_band')}"
+            )
     print(f"  allow_new_trend_trade: {result.get('market_filter', {}).get('allow_new_trend_trade')}")
     if result.get("screen_pack_path"):
         print(f"  screen_pack -> {result['screen_pack_path']}")
     if result.get("screen_trace_path"):
         print(f"  screen_trace -> {result['screen_trace_path']}")
-    print(f"  json -> {paths.get('json')}")
-    print(f"  report -> {paths.get('report')}")
+    for key in ("json", "report", "dossier", "audit", "trend_top10"):
+        if paths.get(key):
+            print(f"  {key} -> {paths[key]}")
+    wp = result.get("watch_pool_full_analysis") or {}
+    if wp.get("combined_report"):
+        print(f"  watch_pool report -> {wp['combined_report']}")
+    if wp.get("errors"):
+        print(f"  WARN watch_pool finalize: {len(wp['errors'])} errors", file=sys.stderr)
     return 0
 
 
@@ -377,11 +417,35 @@ def cmd_init_trace(args: argparse.Namespace) -> int:
         ) or trace["meta"].get("session_mode")
     else:
         trace = init_trace_from_pack(pack, playbook=args.playbook or "full-analysis")
+    if getattr(args, "auto_fill", False) and (args.playbook or "full-analysis") != "watchlist-screen":
+        from core.fill_full_analysis import fill_full_analysis_trace_from_pack
+
+        trace = fill_full_analysis_trace_from_pack(trace, pack)
     out = Path(args.out) if args.out else OUT_TRACE
     save_trace(trace, out)
     print(f"OK trade_trace scaffold -> {out}")
     print(f"  symbols: {len(trace.get('decisions') or {})}")
     print(f"  lenses: {len(trace.get('meta', {}).get('lenses_applied') or [])}")
+    if getattr(args, "auto_fill", False):
+        print(f"  steps: {len(trace.get('steps') or [])}")
+    return 0
+
+
+def cmd_fill_analysis_trace(args: argparse.Namespace) -> int:
+    trace_path = Path(args.fill_analysis_trace)
+    pack_path = Path(args.pack)
+    if not pack_path.exists():
+        print(f"FAIL pack not found: {pack_path}", file=sys.stderr)
+        return 1
+    trace = load_json(trace_path)
+    pack = load_json(pack_path)
+    from core.fill_full_analysis import fill_full_analysis_trace_from_pack
+
+    trace = fill_full_analysis_trace_from_pack(trace, pack)
+    out = Path(args.out) if args.out else trace_path
+    save_trace(trace, out)
+    print(f"OK filled full-analysis trace -> {out}")
+    print(f"  steps: {len(trace.get('steps') or [])}")
     return 0
 
 
@@ -432,6 +496,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="cn-trend-trade-skill：行情包、推理链、复盘日记")
     parser.add_argument("--assemble", action="store_true", help="生成 market_pack.json")
     parser.add_argument("--live", action="store_true", help="Tushare 实盘（需 TUSHARE_TOKEN + --symbols）")
+    parser.add_argument(
+        "--allow-stale",
+        action="store_true",
+        help="允许使用滞后交易日 K 线继续（默认 live 在 data_stale 时失败退出）",
+    )
     parser.add_argument("--fixture", action="store_true", help="fixture 数据（默认）")
     parser.add_argument("--symbols", help="逗号分隔 ts_code")
     parser.add_argument("--session-mode", choices=["new_entry", "holdings_review", "mixed"])
@@ -458,6 +527,16 @@ def main() -> int:
         help="配合 --init-trace：以 sample trace 为模板并覆盖 run_id",
     )
     parser.add_argument("--playbook", help="配合 --init-trace：playbook 名")
+    parser.add_argument(
+        "--auto-fill",
+        action="store_true",
+        help="配合 --init-trace：full-analysis 时自动填充 steps/decisions（规则引擎）",
+    )
+    parser.add_argument(
+        "--fill-analysis-trace",
+        metavar="TRACE",
+        help="将已存在的 trace 用 pack 填充 full-analysis 证据链（需 --pack）",
+    )
     parser.add_argument(
         "--patch-trace",
         metavar="TRACE",
@@ -491,12 +570,29 @@ def main() -> int:
     )
     parser.add_argument("--list-rules", action="store_true", help="列出机检规则")
     parser.add_argument(
+        "--export-mainboard-universe",
+        nargs="?",
+        const="config/mainboard_symbols.yaml",
+        metavar="OUT",
+        help="导出主板 universe 快照（去 ST/连续亏损/黑名单 + 流动性预筛）",
+    )
+    parser.add_argument(
         "--screen-watchlist",
         action="store_true",
         help="自选趋势观察池筛选（非买入推荐，见 watchlist-screen playbook）",
     )
     parser.add_argument("--watchlist", default="config/watchlist.yaml", help="配合 --screen-watchlist / --audit-watchlist")
     parser.add_argument("--max", type=int, help="配合 --screen-watchlist：最多扫描只数")
+    parser.add_argument(
+        "--universe-mode",
+        choices=["watchlist", "mainboard", "both"],
+        help="配合 --screen-watchlist：扫描范围（默认见 watchlist.yaml screening_policy.universe_mode）",
+    )
+    parser.add_argument(
+        "--top",
+        type=int,
+        help="配合 --screen-watchlist：趋势分 TOP N 排行（默认 10）",
+    )
     parser.add_argument(
         "--screen-data-only",
         action="store_true",
@@ -612,6 +708,8 @@ def main() -> int:
         )
     if args.list_rules:
         return cmd_list_rules(args)
+    if args.export_mainboard_universe:
+        return cmd_export_mainboard_universe(args)
     if args.screen_watchlist:
         return cmd_screen_watchlist(args)
     if args.merge_screen_trace:
@@ -626,6 +724,11 @@ def main() -> int:
             print("--show-pack requires --pack", file=sys.stderr)
             return 1
         return cmd_show_pack(args)
+    if args.fill_analysis_trace:
+        if not args.pack:
+            print("--fill-analysis-trace requires --pack", file=sys.stderr)
+            return 1
+        return cmd_fill_analysis_trace(args)
     if args.init_trace:
         if not args.pack:
             print("--init-trace requires --pack", file=sys.stderr)

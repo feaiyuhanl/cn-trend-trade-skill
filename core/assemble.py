@@ -72,6 +72,7 @@ def assemble(
     portfolio_equity: float | None = None,
     risk_pct: float | None = None,
     indices_profile: str = "comprehensive",
+    fail_on_stale: bool = True,
 ) -> Path:
     """Build market_pack.json from fixture or tushare live fetch."""
     TMP_DIR.mkdir(parents=True, exist_ok=True)
@@ -89,6 +90,7 @@ def assemble(
             symbols=symbols,
             indices_profile=indices_profile,
             run_id=run_id,
+            fail_on_stale=fail_on_stale,
         )
 
     pack["user_context"] = _load_user_context(
@@ -102,9 +104,14 @@ def assemble(
         pack["meta"]["run_id"] = run_id
     pack["meta"]["skill_version"] = SKILL_VERSION
     pack["meta"]["as_of"] = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
-    from core.trade_date_util import attach_pack_trade_date_meta
+    from core.trade_date_util import assert_pack_session_fresh
 
-    attach_pack_trade_date_meta(pack)
+    if not use_fixture:
+        assert_pack_session_fresh(pack, fail_on_stale=fail_on_stale)
+    else:
+        from core.trade_date_util import attach_pack_trade_date_meta
+
+        attach_pack_trade_date_meta(pack)
     mode = pack["meta"].get("mode", "fixture")
     pack["meta"]["rules_profile"] = "production" if mode == "live" else "development"
     from adapters.runner import apply_adapters
@@ -119,7 +126,12 @@ def assemble(
         if missing:
             from adapters.tushare_market import apply_live
 
-            extra_pack = apply_live(symbols=missing, indices_profile=indices_profile, run_id=run_id)
+            extra_pack = apply_live(
+                symbols=missing,
+                indices_profile=indices_profile,
+                run_id=run_id,
+                fail_on_stale=fail_on_stale,
+            )
             pack["symbols"].extend(extra_pack.get("symbols", []))
     enrich_a_share_context(pack)
     rules = load_rules_config()

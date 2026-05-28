@@ -27,7 +27,18 @@ DEFAULT_POLICY: dict[str, Any] = {
     "batch_retry": 2,
     "batch_sleep_sec": 0.8,
     "archive_runs": True,
+    "panoramic_report": True,
+    "auto_finalize_watch_pool": True,
+    "ai_auto_rank": True,
+    "fetch_retry": {"max_attempts": 3, "backoff_sec": [65, 90, 120]},
     "forbid_output_words": ["买入推荐", "优先推荐", "优先买入"],
+    "universe_mode": "watchlist",
+    "trend_top_n": 10,
+    "trend_top10_scope": "auto",
+    "max_symbols_mainboard_run": 0,
+    "bulk_fetch": True,
+    "skip_chronic_loss_on_enrich_if_universe_prefiltered": True,
+    "skip_missing_leaders_on_bulk_screen": True,
 }
 
 
@@ -114,6 +125,9 @@ def candidate_row_from_inst(
         "distance_from_52w_high_pct": h.get("distance_from_52w_high_pct"),
         "distance_from_weekly_high_pct": h.get("distance_from_weekly_high_pct"),
         "distance_from_monthly_high_pct": h.get("distance_from_monthly_high_pct"),
+        "distance_from_52w_low_pct": h.get("distance_from_52w_low_pct"),
+        "price_percentile_2y": h.get("price_percentile_2y"),
+        "position_band": h.get("position_band"),
         "ma20_value": h.get("ma20_value"),
         "atr14_pct": h.get("atr14_pct"),
         "fundamentals": fundamentals,
@@ -284,12 +298,18 @@ def cap_watch_pool_by_theme(rows: list[dict[str, Any]], max_per_theme: int) -> N
 
 
 def instrument_row_from_pack(inst: dict[str, Any], flat: dict[str, Any]) -> dict[str, Any]:
+    from core.position_filter import classify_position_band
+
     ts = inst["ts_code"]
     h = dict(inst.get("derived_hints") or {})
+    band = classify_position_band(h)
+    h["position_band"] = band
     h["_close"] = flat.get(f"symbol:{ts}.latest_close")
     daily = inst.get("bars", {}).get("daily") or []
     pct_1d = float(daily[-1]["pct_chg"]) if daily else None
-    return candidate_row_from_inst(ts, inst.get("name", ts), h, pct_1d=pct_1d, flat=flat)
+    row = candidate_row_from_inst(ts, inst.get("name", ts), h, pct_1d=pct_1d, flat=flat)
+    row["position_band"] = band
+    return row
 
 
 def _merge_slot_symbols(target: dict[str, Any], source: dict[str, Any]) -> None:
@@ -373,7 +393,10 @@ def apply_post_ai_gates(
     holdings_ts: set[str],
     holding_themes: set[str] | None,
     pack: dict[str, Any],
+    apply_position: bool = True,
 ) -> None:
+    from core.position_filter import apply_position_gate
+
     for i, row in enumerate(rows):
         if row.get("action") == "pending":
             continue
@@ -387,7 +410,226 @@ def apply_post_ai_gates(
             holding_themes=holding_themes,
         )
         row = apply_pack_gates(row, pack)
+        if apply_position:
+            row = apply_position_gate(row)
         rows[i] = row
+
+
+def resolve_universe_symbols(
+    *,
+    policy: dict[str, Any],
+    watchlist_symbols: list[str],
+    live: bool,
+    max_symbols: int | None = None,
+) -> tuple[list[str], dict[str, Any]]:
+    """Resolve symbol list from universe_mode: watchlist | mainboard | both."""
+    mode = str(policy.get("universe_mode") or "watchlist").lower()
+    universe_meta: dict[str, Any] = {"universe_mode": mode}
+    wl = [str(s).strip().upper() for s in watchlist_symbols if s]
+    wl_set = set(wl)
+
+    if mode == "watchlist":
+        symbols = list(wl)
+    elif mode in ("mainboard", "both"):
+        if not live:
+            universe_meta["mainboard_skipped"] = "fixture/offline mode — mainboard requires --live"
+            symbols = list(wl) if mode == "both" else []
+        else:
+            try:
+                from core.pack_enrich import _get_pro
+                from core.universe_mainboard import fetch_mainboard_universe
+
+                pro = _get_pro()
+                mb = fetch_mainboard_universe(pro)
+                mb_syms = list(mb.get("ts_codes") or [])
+                universe_meta["mainboard"] = mb.get("meta") or {}
+                universe_meta["mainboard"]["final_ts_codes"] = mb_syms
+                if mode == "mainboard":
+                    symbols = mb_syms
+                else:
+                    mb_cap = int(policy.get("max_symbols_mainboard_run") or 0)
+                    mb_extra = [s for s in mb_syms if s not in wl_set]
+                    if mb_cap > 0:
+                        mb_extra = mb_extra[:mb_cap]
+                    symbols = list(dict.fromkeys(wl + mb_extra))
+                    universe_meta["mainboard_extra_count"] = len(mb_extra)
+            except Exception as e:
+                universe_meta["mainboard_error"] = str(e)
+                symbols = list(wl)
+    else:
+        symbols = list(wl)
+        universe_meta["universe_mode"] = "watchlist"
+
+    if max_symbols is not None:
+        symbols = symbols[:max_symbols]
+    elif mode == "watchlist" and policy.get("max_symbols_per_run"):
+        symbols = symbols[: int(policy["max_symbols_per_run"])]
+
+    universe_meta["symbols_resolved"] = len(symbols)
+    universe_meta["watchlist_count"] = len(wl_set)
+    return symbols, universe_meta
+
+
+def _attach_trend_top10(
+    result: dict[str, Any],
+    ranked: list[dict[str, Any]],
+    *,
+    policy: dict[str, Any],
+    watchlist_symbols: list[str],
+    pack: dict[str, Any] | None,
+    universe_meta: dict[str, Any],
+) -> None:
+    from core.trend_top10 import build_trend_top10
+
+    mode = str(universe_meta.get("universe_mode") or policy.get("universe_mode") or "watchlist").lower()
+    top_n = int(policy.get("trend_top_n") or 10)
+    scope_cfg = str(policy.get("trend_top10_scope") or "auto").lower()
+    if scope_cfg == "auto":
+        scope = "mainboard" if mode in ("mainboard", "both") else "watchlist"
+    else:
+        scope = scope_cfg
+
+    wl_set = {str(s).strip().upper() for s in watchlist_symbols}
+    wp_ts = {r["ts_code"] for r in result.get("watch_pool") or []}
+    mb_ts: set[str] | None = None
+    if scope == "mainboard" and mode in ("mainboard", "both"):
+        mb_meta = universe_meta.get("mainboard") or {}
+        mb_list = mb_meta.get("final_ts_codes")
+        if mb_list:
+            mb_ts = set(mb_list)
+        elif mode == "mainboard":
+            mb_ts = {r["ts_code"] for r in ranked}
+
+    trend = build_trend_top10(
+        ranked,
+        scope=scope,
+        top_n=top_n,
+        watchlist_ts=wl_set,
+        watch_pool_ts=wp_ts,
+        pack=pack,
+        symbol_scope=mb_ts,
+    )
+    result["trend_top10"] = trend
+
+
+def _meta_stale_fields(pack: dict[str, Any] | None) -> dict[str, str]:
+    meta = (pack or {}).get("meta") or {}
+    out: dict[str, str] = {}
+    for k in (
+        "expected_trade_date",
+        "data_stale_headline",
+        "data_stale_detail",
+        "data_stale_retry",
+        "data_stale_notice",
+    ):
+        if meta.get(k):
+            out[k] = str(meta[k])
+    return out
+
+
+def _fetch_cfg_from_policy(policy: dict[str, Any]) -> dict[str, Any]:
+    from core.tushare_rate_limit import load_fetch_concurrency_config
+
+    cfg = load_fetch_concurrency_config()
+    override = policy.get("fetch_concurrency") or {}
+    return {**cfg, **override}
+
+
+def _enrich_merged_pack_once(
+    merged_pack: dict[str, Any],
+    policy: dict[str, Any],
+    *,
+    universe_meta: dict[str, Any] | None = None,
+) -> None:
+    from core.pack_enrich import enrich_a_share_context
+
+    fetch_retry = policy.get("fetch_retry") or {}
+    fetch_cfg = _fetch_cfg_from_policy(policy)
+    skip_cl = False
+    if policy.get("skip_chronic_loss_on_enrich_if_universe_prefiltered"):
+        mb = (universe_meta or {}).get("mainboard") or {}
+        clf = mb.get("chronic_loss_filter") or {}
+        skip_cl = clf.get("after_chronic_loss") is not None and not clf.get("skipped")
+    skip_leaders = bool(policy.get("skip_missing_leaders_on_bulk_screen")) and len(
+        merged_pack.get("symbols") or []
+    ) >= int(fetch_cfg.get("bulk_fetch_min_symbols") or 50)
+    enrich_a_share_context(
+        merged_pack,
+        fetch_retry=fetch_retry,
+        fetch_cfg=fetch_cfg,
+        skip_chronic_loss=skip_cl,
+        skip_missing_leaders=skip_leaders,
+    )
+
+
+def _write_panoramic_outputs(
+    result: dict[str, Any],
+    *,
+    out: Path,
+    trace: dict[str, Any] | None,
+    pack: dict[str, Any] | None,
+    policy: dict[str, Any],
+    run_id: str,
+    live: bool,
+) -> None:
+    from core.screen_panoramic import (
+        render_screen_audit_sheet,
+        render_screen_dossier,
+        render_screen_panoramic_report,
+    )
+
+    pack_meta = (pack or {}).get("meta") or result.get("meta")
+    panoramic = policy.get("panoramic_report", True)
+    if panoramic and trace and pack:
+        report_path = out / "screen_report.md"
+        report_path.write_text(
+            render_screen_panoramic_report(
+                result, trace=trace, pack_meta=pack_meta, pack=pack
+            ),
+            encoding="utf-8",
+        )
+        dossier_path = out / "screen-dossier.md"
+        dossier_path.write_text(render_screen_dossier(result, trace=trace, pack=pack), encoding="utf-8")
+        audit_path = out / "screen-audit-sheet.md"
+        audit_path.write_text(render_screen_audit_sheet(result, pack=pack), encoding="utf-8")
+        result["_paths"]["report"] = str(report_path)
+        result["_paths"]["dossier"] = str(dossier_path)
+        result["_paths"]["audit"] = str(audit_path)
+    else:
+        report_path = out / "screen_report.md"
+        report_path.write_text(render_screen_report(result), encoding="utf-8")
+        result["_paths"]["report"] = str(report_path)
+
+    if policy.get("auto_finalize_watch_pool") and result.get("watch_pool") and trace:
+        from core.screen_full_finalize import run_watch_pool_full_finalize
+
+        wp_result = run_watch_pool_full_finalize(
+            result["watch_pool"],
+            trace,
+            out_dir=out,
+            run_id=run_id,
+            live=live,
+        )
+        result["watch_pool_full_analysis"] = wp_result
+        if wp_result.get("errors"):
+            result.setdefault("gaps", []).append(
+                f"watch_pool_full_finalize: {len(wp_result['errors'])} validation errors"
+            )
+
+
+def _maybe_auto_rank_trace(
+    trace: dict[str, Any],
+    pack: dict[str, Any],
+    policy: dict[str, Any],
+    trace_path: Path,
+) -> dict[str, Any]:
+    if not policy.get("ai_auto_rank", True):
+        return trace
+    from core.screen_ai import fill_screen_trace_from_pack
+
+    trace = fill_screen_trace_from_pack(trace, pack)
+    trace_path.write_text(json.dumps(trace, ensure_ascii=False, indent=2), encoding="utf-8")
+    return trace
 
 
 def run_merge_screen_trace(
@@ -413,6 +655,11 @@ def run_merge_screen_trace(
 
     rows = rows_from_merged_pack(pack, theme_index)
     rows = merge_trace_into_rows(rows, trace)
+    for row in rows:
+        ts = row["ts_code"]
+        sc = ((trace.get("decisions") or {}).get(ts) or {}).get("screen") or {}
+        if sc.get("observation_plan"):
+            row["observation_plan"] = sc["observation_plan"]
     apply_post_ai_gates(
         rows,
         policy=policy,
@@ -425,17 +672,24 @@ def run_merge_screen_trace(
     ranked = finalize_ranked_rows(rows, policy=policy, retreat_info=retreat_info)
 
     meta = pack.get("meta") or {}
+    stale_extra = _meta_stale_fields(pack)
     max_out = int(policy.get("max_watch_pool_output") or 15)
+    watchlist_symbols = list(cfg["symbols_flat"])
+    universe_meta = {"universe_mode": policy.get("universe_mode") or "watchlist"}
     result: dict[str, Any] = {
         "meta": {
             "run_id": meta.get("run_id") or datetime.now().strftime("%Y%m%d-%H%M%S"),
             "as_of": meta.get("as_of"),
             "trade_date": meta.get("trade_date"),
             "data_stale": bool(meta.get("data_stale")),
+            "fetch_status": meta.get("fetch_status") or {},
+            "fetch_messages": meta.get("fetch_messages") or [],
+            **stale_extra,
             "output_label": policy.get("output_label") or "watch_pool_only",
             "screened": len(ranked),
             "ranked_by": "ai_safety_rank",
             "policy_version": cfg["watchlist_path"].name,
+            "universe_mode": universe_meta.get("universe_mode"),
         },
         "market_filter": {
             "regime_note": "",
@@ -446,11 +700,19 @@ def run_merge_screen_trace(
         "watch_pullback": [r for r in ranked if r["action"] == "watch_pullback"][:max_out],
         "near_high_trim": [r for r in ranked if r["action"] == "near_high_trim"][:max_out],
         "avoid_count": sum(1 for r in ranked if r["action"] == "avoid"),
-        "gaps": ["ranked_by_ai_safety_rank"],
+        "gaps": ["ranked_by_rule_engine_safety_rank"],
         "all_ranked": ranked,
         "screen_pack_path": str(pack_path),
         "screen_trace_path": str(trace_path),
     }
+    _attach_trend_top10(
+        result,
+        ranked,
+        policy=policy,
+        watchlist_symbols=watchlist_symbols,
+        pack=pack,
+        universe_meta=universe_meta,
+    )
     if pack.get("market_sentiment"):
         result["market_sentiment"] = pack["market_sentiment"]
     tc = (pack.get("slots") or {}).get("theme_context")
@@ -461,15 +723,38 @@ def run_merge_screen_trace(
     out.mkdir(parents=True, exist_ok=True)
     json_path = out / "watchlist_screen.json"
     json_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
-    report_path = out / "screen_report.md"
-    report_path.write_text(render_screen_report(result), encoding="utf-8")
+    result["_paths"] = {"json": str(json_path)}
+    if result.get("trend_top10"):
+        top_path = out / "trend_top10.json"
+        top_path.write_text(json.dumps(result["trend_top10"], ensure_ascii=False, indent=2), encoding="utf-8")
+        result["_paths"]["trend_top10"] = str(top_path)
+    _write_panoramic_outputs(
+        result,
+        out=out,
+        trace=trace,
+        pack=pack,
+        policy=policy,
+        run_id=result["meta"]["run_id"],
+        live=(pack.get("meta") or {}).get("mode") == "live",
+    )
     if policy.get("archive_runs"):
         run_id = result["meta"]["run_id"]
         arch = _ROOT / ".trend-trade" / "archive" / run_id
         arch.mkdir(parents=True, exist_ok=True)
         shutil.copy2(json_path, arch / "watchlist_screen.json")
-        shutil.copy2(report_path, arch / "screen_report.md")
-    result["_paths"] = {"json": str(json_path), "report": str(report_path)}
+        top_p = out / "trend_top10.json"
+        if top_p.exists():
+            shutil.copy2(top_p, arch / "trend_top10.json")
+        for name in ("screen_report.md", "screen-dossier.md", "screen-audit-sheet.md"):
+            p = out / name
+            if p.exists():
+                shutil.copy2(p, arch / name)
+        wp_dir = out / "watch_pool_analysis"
+        if wp_dir.exists():
+            arch_wp = arch / "watch_pool_analysis"
+            if arch_wp.exists():
+                shutil.rmtree(arch_wp)
+            shutil.copytree(wp_dir, arch_wp)
     return result
 
 
@@ -482,17 +767,35 @@ def run_screen(
     out_dir: Path | None = None,
     screen_trace_path: Path | None = None,
     data_only: bool = False,
+    universe_mode: str | None = None,
+    trend_top_n: int | None = None,
+    fail_on_stale: bool | None = None,
 ) -> dict[str, Any]:
-    from core.fetch_live import build_live_pack
+    from core.fetch_live import build_live_pack, preflight_fresh_session
     from core.pack_facts import attach_fact_index
 
     cfg = load_watchlist_config(watchlist_path)
     policy = cfg["policy"]
-    symbols = symbols or cfg["symbols_flat"]
-    if max_symbols is not None:
-        symbols = symbols[:max_symbols]
-    elif policy.get("max_symbols_per_run"):
-        symbols = symbols[: int(policy["max_symbols_per_run"])]
+    if universe_mode:
+        policy = {**policy, "universe_mode": universe_mode}
+    if trend_top_n is not None:
+        policy = {**policy, "trend_top_n": trend_top_n}
+    watchlist_symbols = list(cfg["symbols_flat"])
+    if symbols is not None:
+        symbols = [str(s).strip().upper() for s in symbols if s]
+        if max_symbols is not None:
+            symbols = symbols[:max_symbols]
+        universe_meta: dict[str, Any] = {
+            "universe_mode": "cli_override",
+            "symbols_resolved": len(symbols),
+        }
+    else:
+        symbols, universe_meta = resolve_universe_symbols(
+            policy=policy,
+            watchlist_symbols=watchlist_symbols,
+            live=live,
+            max_symbols=max_symbols,
+        )
 
     theme_resolution: dict[str, Any] | None = None
     if live:
@@ -528,6 +831,18 @@ def run_screen(
     batch_size = int(policy.get("batch_size") or 25)
     retries = int(policy.get("batch_retry") or 2)
     sleep_sec = float(policy.get("batch_sleep_sec") or 0.8)
+    fetch_cfg = _fetch_cfg_from_policy(policy)
+    bulk_min = int(fetch_cfg.get("bulk_fetch_min_symbols") or 50)
+    use_bulk = bool(policy.get("bulk_fetch", True)) and live and len(symbols) >= bulk_min
+    min_sym_ratio = float(policy.get("min_symbol_session_ratio") or 0.95)
+    require_fresh = live and (
+        fail_on_stale
+        if fail_on_stale is not None
+        else bool(policy.get("require_fresh_session", True))
+    )
+
+    if require_fresh:
+        preflight_fresh_session(min_symbol_ratio=min_sym_ratio, fail_on_stale=True)
 
     all_rows: list[dict[str, Any]] = []
     gaps: list[str] = []
@@ -540,62 +855,132 @@ def run_screen(
     failed_batches: list[str] = []
     merged_pack: dict[str, Any] | None = None
 
-    for i in range(0, len(symbols), batch_size):
-        batch = symbols[i : i + batch_size]
+    if use_bulk:
         pack = None
         last_err = ""
         for attempt in range(retries + 1):
             try:
-                if live:
-                    pack = build_live_pack(symbols=batch, indices_profile="minimal", run_id=run_id)
-                else:
-                    raise RuntimeError("fixture screen not in run_screen; use tests with candidate_row_from_inst")
+                pack = build_live_pack(
+                    symbols=symbols,
+                    indices_profile="minimal",
+                    run_id=run_id,
+                    enrich=False,
+                    fetch_breadth=False,
+                    fetch_indices=True,
+                    fetch_cfg=fetch_cfg,
+                )
                 break
             except Exception as e:
                 last_err = str(e)
                 time.sleep(1.5)
         if pack is None:
-            failed_batches.append(f"{batch[0]}..{batch[-1]}: {last_err}")
-            continue
+            failed_batches.append(f"bulk:{symbols[0]}..{symbols[-1]}: {last_err}")
+        else:
+            merged_pack = pack
+            attach_fact_index(pack)
+            meta_pack = pack.get("meta") or {}
+            as_of = meta_pack.get("as_of") or as_of
+            trade_date = meta_pack.get("trade_date") or trade_date
+            if meta_pack.get("data_stale"):
+                data_stale = True
+            if pack.get("indices"):
+                parts = []
+                for idx in pack["indices"]:
+                    bars = idx.get("bars", {}).get("daily") or []
+                    if bars:
+                        parts.append(f"{idx.get('name')} {bars[-1].get('pct_chg', 0):+.2f}%")
+                market_note = "；".join(parts[:4])
+            flat = (pack.get("fact_index") or {}).get("flat", {})
+            for inst in pack.get("symbols", []):
+                row = instrument_row_from_pack(inst, flat)
+                tid = theme_index.get(row["ts_code"])
+                meta = inst.get("theme_meta") or {}
+                row["theme"] = tid
+                row["theme_meta"] = meta
+                all_rows.append(row)
+    else:
+        for i in range(0, len(symbols), batch_size):
+            batch = symbols[i : i + batch_size]
+            pack = None
+            last_err = ""
+            for attempt in range(retries + 1):
+                try:
+                    if live:
+                        pack = build_live_pack(
+                            symbols=batch,
+                            indices_profile="minimal",
+                            run_id=run_id,
+                            enrich=False,
+                            fetch_breadth=False,
+                            fetch_indices=(i == 0),
+                            fetch_cfg=fetch_cfg,
+                        )
+                    else:
+                        raise RuntimeError("fixture screen not in run_screen; use tests with candidate_row_from_inst")
+                    break
+                except Exception as e:
+                    last_err = str(e)
+                    time.sleep(1.5)
+            if pack is None:
+                failed_batches.append(f"{batch[0]}..{batch[-1]}: {last_err}")
+                continue
 
-        merged_pack = merge_batch_into_pack(merged_pack, pack)
-        attach_fact_index(pack)
-        meta_pack = pack.get("meta") or {}
-        as_of = meta_pack.get("as_of") or as_of
-        trade_date = meta_pack.get("trade_date") or trade_date
-        if meta_pack.get("data_stale"):
-            data_stale = True
-        if i == 0 and pack.get("indices"):
-            parts = []
-            for idx in pack["indices"]:
-                bars = idx.get("bars", {}).get("daily") or []
-                if bars:
-                    parts.append(f"{idx.get('name')} {bars[-1].get('pct_chg', 0):+.2f}%")
-            market_note = "；".join(parts[:4])
+            merged_pack = merge_batch_into_pack(merged_pack, pack)
+            attach_fact_index(pack)
+            meta_pack = pack.get("meta") or {}
+            as_of = meta_pack.get("as_of") or as_of
+            trade_date = meta_pack.get("trade_date") or trade_date
+            if meta_pack.get("data_stale"):
+                data_stale = True
+            if i == 0 and pack.get("indices"):
+                parts = []
+                for idx in pack["indices"]:
+                    bars = idx.get("bars", {}).get("daily") or []
+                    if bars:
+                        parts.append(f"{idx.get('name')} {bars[-1].get('pct_chg', 0):+.2f}%")
+                market_note = "；".join(parts[:4])
 
-        flat = (pack.get("fact_index") or {}).get("flat", {})
-        for inst in pack.get("symbols", []):
-            row = instrument_row_from_pack(inst, flat)
-            tid = theme_index.get(row["ts_code"])
-            meta = (inst.get("theme_meta") or {})
-            row["theme"] = tid
-            row["theme_meta"] = meta
-            all_rows.append(row)
-        time.sleep(sleep_sec)
+            flat = (pack.get("fact_index") or {}).get("flat", {})
+            for inst in pack.get("symbols", []):
+                row = instrument_row_from_pack(inst, flat)
+                tid = theme_index.get(row["ts_code"])
+                meta = inst.get("theme_meta") or {}
+                row["theme"] = tid
+                row["theme_meta"] = meta
+                all_rows.append(row)
+            time.sleep(sleep_sec)
 
     out = out_dir or (_ROOT / ".trend-trade" / "tmp")
     out.mkdir(parents=True, exist_ok=True)
 
     if merged_pack:
         from core.pack_facts import attach_fact_index as _attach
+        from core.trade_date_util import attach_pack_trade_date_meta
 
+        if live:
+            try:
+                from core.pack_enrich import _get_pro
+
+                pro = _get_pro()
+            except Exception:
+                pro = None
+            from core.trade_date_util import assert_pack_session_fresh
+
+            assert_pack_session_fresh(
+                merged_pack,
+                fail_on_stale=require_fresh,
+                min_symbol_ratio=min_sym_ratio,
+            )
+            stale_notice = _meta_stale_fields(merged_pack)
+            _enrich_merged_pack_once(merged_pack, policy, universe_meta=universe_meta)
         _attach(merged_pack)
         pack_path = out / "screen_pack.json"
         pack_path.write_text(json.dumps(merged_pack, ensure_ascii=False, indent=2), encoding="utf-8")
         from core.init_trace import init_trace_from_pack
 
         trace_path = out / "screen_trace.json"
-        if not trace_path.exists() or policy.get("reset_screen_trace"):
+        refresh_trace = policy.get("refresh_screen_trace_each_run", True)
+        if refresh_trace or not trace_path.exists() or policy.get("reset_screen_trace"):
             trace = init_trace_from_pack(merged_pack, playbook="watchlist-screen")
             trace_path.write_text(json.dumps(trace, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -603,11 +988,37 @@ def run_screen(
     screen_trace: dict[str, Any] | None = None
     if trace_file.exists():
         screen_trace = json.loads(trace_file.read_text(encoding="utf-8"))
+    elif merged_pack and not data_only:
+        from core.init_trace import init_trace_from_pack
+
+        screen_trace = init_trace_from_pack(merged_pack, playbook="watchlist-screen")
+        trace_file.write_text(json.dumps(screen_trace, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    if merged_pack and screen_trace and policy.get("ai_auto_rank", True) and not data_only:
+        screen_trace = _maybe_auto_rank_trace(screen_trace, merged_pack, policy, trace_file)
 
     if screen_trace and trace_has_ai_ranks(screen_trace) and not data_only:
         from core.merge_screen_trace import merge_trace_into_rows
 
         all_rows = merge_trace_into_rows(all_rows, screen_trace)
+        for row in all_rows:
+            ts = row["ts_code"]
+            sc = ((screen_trace.get("decisions") or {}).get(ts) or {}).get("screen") or {}
+            if sc.get("observation_plan"):
+                row["observation_plan"] = sc["observation_plan"]
+            for key in (
+                "score_breakdown",
+                "trap_vol_reason",
+                "action_rule",
+                "theme_id",
+                "theme_label",
+                "theme_lifecycle",
+                "theme_lifecycle_rule",
+                "position_band",
+                "price_percentile_2y",
+            ):
+                if sc.get(key) is not None:
+                    row[key] = sc[key]
         if merged_pack:
             apply_post_ai_gates(
                 all_rows,
@@ -617,7 +1028,7 @@ def run_screen(
                 holding_themes=holding_themes,
                 pack=merged_pack,
             )
-        gaps.append("ranked_by_ai_safety_rank")
+        gaps.append("ranked_by_rule_engine_safety_rank")
     elif data_only:
         gaps.append("data_only: patch screen_trace.json then --merge-screen-trace")
     elif screen_trace and not trace_has_ai_ranks(screen_trace):
@@ -645,6 +1056,8 @@ def run_screen(
             "trade_date": trade_date,
             "data_stale": data_stale,
             "expected_trade_date": stale_notice.get("expected_trade_date") or trade_date,
+            "fetch_status": (merged_pack.get("meta") or {}).get("fetch_status") if merged_pack else {},
+            "fetch_messages": (merged_pack.get("meta") or {}).get("fetch_messages") if merged_pack else [],
             **(
                 {k: stale_notice[k] for k in ("data_stale_headline", "data_stale_detail", "data_stale_retry", "data_stale_notice") if k in stale_notice}
             ),
@@ -653,6 +1066,8 @@ def run_screen(
             "symbols_requested": len(symbols),
             "ranked_by": "ai_safety_rank" if has_ranks else None,
             "policy_version": cfg["watchlist_path"].name,
+            "universe_mode": universe_meta.get("universe_mode"),
+            "universe_meta": universe_meta,
         },
         "market_filter": {
             "regime_note": market_note,
@@ -680,6 +1095,15 @@ def run_screen(
     if merged_pack:
         result["screen_pack_path"] = str(out / "screen_pack.json")
         result["screen_trace_path"] = str(out / "screen_trace.json")
+        if has_ranks:
+            _attach_trend_top10(
+                result,
+                ranked,
+                policy=policy,
+                watchlist_symbols=watchlist_symbols,
+                pack=merged_pack,
+                universe_meta=universe_meta,
+            )
         if merged_pack.get("market_sentiment"):
             result["market_sentiment"] = merged_pack["market_sentiment"]
         tc = (merged_pack.get("slots") or {}).get("theme_context")
@@ -700,16 +1124,39 @@ def run_screen(
 
     json_path = out / "watchlist_screen.json"
     json_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
-    report_path = out / "screen_report.md"
-    report_path.write_text(render_screen_report(result), encoding="utf-8")
+    result["_paths"] = {"json": str(json_path)}
+    if result.get("trend_top10"):
+        top_path = out / "trend_top10.json"
+        top_path.write_text(json.dumps(result["trend_top10"], ensure_ascii=False, indent=2), encoding="utf-8")
+        result["_paths"]["trend_top10"] = str(top_path)
+    _write_panoramic_outputs(
+        result,
+        out=out,
+        trace=screen_trace,
+        pack=merged_pack,
+        policy=policy,
+        run_id=run_id,
+        live=live,
+    )
 
     if policy.get("archive_runs"):
         arch = _ROOT / ".trend-trade" / "archive" / run_id
         arch.mkdir(parents=True, exist_ok=True)
         shutil.copy2(json_path, arch / "watchlist_screen.json")
-        shutil.copy2(report_path, arch / "screen_report.md")
+        top_p = out / "trend_top10.json"
+        if top_p.exists():
+            shutil.copy2(top_p, arch / "trend_top10.json")
+        for name in ("screen_report.md", "screen-dossier.md", "screen-audit-sheet.md"):
+            p = out / name
+            if p.exists():
+                shutil.copy2(p, arch / name)
+        wp_dir = out / "watch_pool_analysis"
+        if wp_dir.exists():
+            arch_wp = arch / "watch_pool_analysis"
+            if arch_wp.exists():
+                shutil.rmtree(arch_wp)
+            shutil.copytree(wp_dir, arch_wp)
 
-    result["_paths"] = {"json": str(json_path), "report": str(report_path)}
     return result
 
 
@@ -776,15 +1223,31 @@ def render_screen_report(result: dict[str, Any]) -> str:
             lines.append(f"- **{r['ts_code']}** {r.get('name', '')} · {flags} · action={r.get('action')}")
         if len(risk_blocked) > 30:
             lines.append(f"- … 另有 {len(risk_blocked) - 30} 只，见 watchlist_screen.json")
-    lines.extend(
-        [
-            "",
-            f"- **avoid 数量**：{result.get('avoid_count', 0)}",
-            "",
-            "## 数据缺口 gaps",
-            "",
-        ]
-    )
+    lines.extend(["", f"- **avoid 数量**：{result.get('avoid_count', 0)}", ""])
+
+    trend = result.get("trend_top10") or {}
+    stocks = trend.get("stocks") or []
+    if stocks:
+        lines.extend(
+            [
+                "",
+                f"## 趋势分 TOP{ trend.get('top_n', 10) }（{trend.get('scope', '—')} · 非观察池推荐）",
+                "",
+                f"> {trend.get('note', '')}",
+                "",
+                "| # | 代码 | 名称 | 分数 | 位置带 | 在自选 | 在观察池 |",
+                "|---|------|------|------|--------|--------|----------|",
+            ]
+        )
+        for s in stocks:
+            lines.append(
+                f"| {s.get('rank')} | {s.get('ts_code')} | {s.get('name', '')} | "
+                f"{s.get('safety_rank')} | {s.get('position_band', '—')} | "
+                f"{'是' if s.get('in_watchlist') else '否'} | "
+                f"{'是' if s.get('in_watch_pool') else '否'} |"
+            )
+
+    lines.extend(["", "## 数据缺口 gaps", ""])
     for g in result.get("gaps") or []:
         lines.append(f"- {g}")
     lines.append("")

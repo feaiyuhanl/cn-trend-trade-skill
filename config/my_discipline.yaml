@@ -7,15 +7,15 @@ portfolio:
   max_open_trend_positions: 8
 
 holdings:
-  - ts_code: 601016.SH
-    name: 节能风电
-    theme: BK0427.DC
   - ts_code: 000591.SZ
     name: 太阳能
-    theme: BK0427.DC
-  - ts_code: 000997.SZ
-    name: 新大陆
-    theme: BK0556.DC
+    theme: BK0493.DC
+  - ts_code: 002049.SZ
+    name: 紫光国微
+    theme: BK1036.DC
+  - ts_code: 605358.SH
+    name: 立昂微
+    theme: BK1036.DC
 
 rules:
   - id: NO_CHASE_ON_SECTOR_RED_DAY

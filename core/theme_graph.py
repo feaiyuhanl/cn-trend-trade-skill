@@ -130,19 +130,111 @@ def _infer_lifecycle(
     leader_limit_down: bool,
     up_frac: float,
 ) -> str:
-    if leader_limit_down or (leader_pct is not None and leader_pct <= -7) or (
-        down_frac >= 0.5 and median_pct <= -2
-    ):
-        return "retreat"
+    return explain_lifecycle_stage(
+        down_frac=down_frac,
+        median_pct=median_pct,
+        leader_pct=leader_pct,
+        leader_limit_down=leader_limit_down,
+        up_frac=up_frac,
+    )["lifecycle_stage"]
+
+
+def explain_lifecycle_stage(
+    *,
+    down_frac: float,
+    median_pct: float,
+    leader_pct: float | None,
+    leader_limit_down: bool,
+    up_frac: float,
+) -> dict[str, Any]:
+    """Return lifecycle_stage and which rule branch matched (for reports)."""
+    if leader_limit_down:
+        return {
+            "lifecycle_stage": "retreat",
+            "lifecycle_rule": "retreat: 龙头跌停",
+            "lifecycle_inputs": _lifecycle_inputs(
+                down_frac, median_pct, leader_pct, leader_limit_down, up_frac
+            ),
+        }
+    if leader_pct is not None and leader_pct <= -7:
+        return {
+            "lifecycle_stage": "retreat",
+            "lifecycle_rule": f"retreat: 龙头日跌 {leader_pct:.1f}% ≤ -7%",
+            "lifecycle_inputs": _lifecycle_inputs(
+                down_frac, median_pct, leader_pct, leader_limit_down, up_frac
+            ),
+        }
+    if down_frac >= 0.5 and median_pct <= -2:
+        return {
+            "lifecycle_stage": "retreat",
+            "lifecycle_rule": (
+                f"retreat: 样本下跌占比 {down_frac:.0%}≥50% 且中位涨跌幅 {median_pct:.2f}%≤-2%"
+            ),
+            "lifecycle_inputs": _lifecycle_inputs(
+                down_frac, median_pct, leader_pct, leader_limit_down, up_frac
+            ),
+        }
     if up_frac >= 0.6 and leader_pct is not None and leader_pct > 0:
-        return "consensus"
+        return {
+            "lifecycle_stage": "consensus",
+            "lifecycle_rule": (
+                f"consensus: 上涨占比 {up_frac:.0%}≥60% 且龙头 {leader_pct:+.1f}%>0"
+            ),
+            "lifecycle_inputs": _lifecycle_inputs(
+                down_frac, median_pct, leader_pct, leader_limit_down, up_frac
+            ),
+        }
     if leader_pct is not None and leader_pct > 1 and up_frac < 0.45:
-        return "divergence"
+        return {
+            "lifecycle_stage": "divergence",
+            "lifecycle_rule": (
+                f"divergence: 龙头 {leader_pct:+.1f}%>1% 但上涨占比 {up_frac:.0%}<45%"
+            ),
+            "lifecycle_inputs": _lifecycle_inputs(
+                down_frac, median_pct, leader_pct, leader_limit_down, up_frac
+            ),
+        }
     if leader_pct is not None and leader_pct > 0 and up_frac >= 0.4:
-        return "ferment"
+        return {
+            "lifecycle_stage": "ferment",
+            "lifecycle_rule": (
+                f"ferment: 龙头 {leader_pct:+.1f}%>0 且上涨占比 {up_frac:.0%}≥40%"
+            ),
+            "lifecycle_inputs": _lifecycle_inputs(
+                down_frac, median_pct, leader_pct, leader_limit_down, up_frac
+            ),
+        }
     if leader_pct is not None and leader_pct > 3:
-        return "new"
-    return "divergence"
+        return {
+            "lifecycle_stage": "new",
+            "lifecycle_rule": f"new: 龙头日涨 {leader_pct:+.1f}%>3%",
+            "lifecycle_inputs": _lifecycle_inputs(
+                down_frac, median_pct, leader_pct, leader_limit_down, up_frac
+            ),
+        }
+    return {
+        "lifecycle_stage": "divergence",
+        "lifecycle_rule": "divergence: 默认（未命中 consensus/ferment/new/retreat）",
+        "lifecycle_inputs": _lifecycle_inputs(
+            down_frac, median_pct, leader_pct, leader_limit_down, up_frac
+        ),
+    }
+
+
+def _lifecycle_inputs(
+    down_frac: float,
+    median_pct: float,
+    leader_pct: float | None,
+    leader_limit_down: bool,
+    up_frac: float,
+) -> dict[str, Any]:
+    return {
+        "down_frac": round(down_frac, 4),
+        "up_frac": round(up_frac, 4),
+        "median_pct_1d": round(median_pct, 4),
+        "leader_pct_1d": leader_pct,
+        "leader_limit_down": leader_limit_down,
+    }
 
 
 def assess_theme_from_members(
@@ -187,13 +279,14 @@ def assess_theme_from_members(
     leader_pct = leader_stats[0]["pct_chg_1d"] if leader_stats else None
     leader_limit_down = any(x["limit_down"] for x in leader_stats)
 
-    stage = _infer_lifecycle(
+    lc = explain_lifecycle_stage(
         down_frac=down_frac,
         median_pct=median_pct,
         leader_pct=leader_pct,
         leader_limit_down=leader_limit_down,
         up_frac=up_frac,
     )
+    stage = lc["lifecycle_stage"]
 
     strength_score = median_pct
     allow = "yes"
@@ -215,6 +308,8 @@ def assess_theme_from_members(
         "strength_score": round(strength_score, 4),
         "leader_limit_down": leader_limit_down,
         "follower_count": len(follower_rows),
+        "lifecycle_rule": lc.get("lifecycle_rule"),
+        "lifecycle_inputs": lc.get("lifecycle_inputs"),
     }
 
 

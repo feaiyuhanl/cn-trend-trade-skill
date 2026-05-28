@@ -10,7 +10,13 @@ def apply_live(
     symbols: list[str],
     indices_profile: str = "comprehensive",
     run_id: str | None = None,
+    fail_on_stale: bool = True,
 ) -> dict[str, Any]:
     from core.fetch_live import build_live_pack
 
-    return build_live_pack(symbols=symbols, indices_profile=indices_profile, run_id=run_id)
+    return build_live_pack(
+        symbols=symbols,
+        indices_profile=indices_profile,
+        run_id=run_id,
+        fail_on_stale=fail_on_stale,
+    )

@@ -12,7 +12,7 @@
 
 ## 输入（只读 Pack）
 
-- `derived_hints`：`structure`、`vol_ratio_5_20`、`amount_ratio_5_20`、`distance_from_*_high_pct`、周/月 MA 斜率等
+- `derived_hints`：`structure`、`vol_ratio_5_20`、`amount_ratio_5_20`、`distance_from_*_high_pct`、**`price_percentile_2y`**、**`distance_from_52w_low_pct`**、**`position_band`**、周/月 MA 斜率等
 - `bars.weekly` / `bars.monthly`（最近若干根，见 `--show-pack screen-brief`）
 - `fundamentals.*`：市值、成交额、换手、PE（客观数字，用于质地对比）
 
@@ -22,6 +22,8 @@
 2. **月 K 大级别**：月线图是否仍远离前高，还是已进入顶部密集区
 3. **量能情境**：放量发生在突破平台/均线 reclaimed，还是贴近前高/新高的冲刺量
 4. **底部放量 + 离顶远** → 通常 trap_risk 偏低；**顶部放量 + 近新高** → trap_risk 偏高（即使日线趋势仍强）
+5. **中低位修复区（新大陆模式）**：`price_percentile_2y` 在 25–60、`distance_from_52w_high_pct` ≤ -10%、HH/HL + MA20 上 → `position_band=mid_low`，可进 watch_pool
+6. **机检键**：`symbol:{ts}.derived_hints.price_percentile_2y`、`position_band`（由 `position_filter.yaml` 驱动）
 
 ## 输出（写入 `decisions[ts_code].screen`）
 

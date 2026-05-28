@@ -465,6 +465,39 @@ def _check_screen_facts_used_when_ranked(
     return msgs
 
 
+def _check_screen_steps_match_lenses(
+    pack: dict[str, Any], trace: dict[str, Any], _profile: dict[str, Any]
+) -> list[str]:
+    if not _is_watchlist_screen_trace(trace):
+        return []
+    lenses = (trace.get("meta") or {}).get("lenses_applied") or []
+    steps = trace.get("steps") or []
+    if not lenses:
+        return []
+    if len(steps) != len(lenses):
+        return [f"screen steps: count {len(steps)} must equal lenses_applied {len(lenses)}"]
+    step_lenses = [s.get("lens") for s in steps]
+    if step_lenses != lenses:
+        return [f"screen steps lens order {step_lenses!r} must match lenses_applied {lenses!r}"]
+    return []
+
+
+def _check_screen_watch_pool_observation_plan(
+    pack: dict[str, Any], trace: dict[str, Any], _profile: dict[str, Any]
+) -> list[str]:
+    if not _is_watchlist_screen_trace(trace):
+        return []
+    msgs: list[str] = []
+    for ts, dec in (trace.get("decisions") or {}).items():
+        sc = (dec or {}).get("screen") or {}
+        if sc.get("action") != "watch_pool":
+            continue
+        op = sc.get("observation_plan") or {}
+        if not op.get("trail_stop_hint"):
+            msgs.append(f"decisions.{ts}.screen.observation_plan: trail_stop_hint required for watch_pool")
+    return msgs
+
+
 def _check_screen_quality_block_avoid(
     pack: dict[str, Any], trace: dict[str, Any], _profile: dict[str, Any]
 ) -> list[str]:
@@ -480,6 +513,39 @@ def _check_screen_quality_block_avoid(
         if sc.get("action") not in ("avoid", "pending", None):
             msgs.append(f"decisions.{ts}.screen: quality block requires action=avoid")
     return msgs
+
+
+def _check_screen_position_gate_watch_pool(
+    pack: dict[str, Any], trace: dict[str, Any], _profile: dict[str, Any]
+) -> list[str]:
+    if not _is_watchlist_screen_trace(trace):
+        return []
+    from core.position_filter import blocks_watch_pool, load_position_config
+
+    cfg = load_position_config()
+    msgs: list[str] = []
+    for ts, dec in (trace.get("decisions") or {}).items():
+        sc = (dec or {}).get("screen") or {}
+        if sc.get("action") != "watch_pool":
+            continue
+        inst = next((s for s in pack.get("symbols", []) if s["ts_code"] == ts), None)
+        h = (inst or {}).get("derived_hints") or {}
+        blocked, reason = blocks_watch_pool(
+            h,
+            struct=str(h.get("structure") or sc.get("structure") or ""),
+            above_ma20=h.get("price_above_ma20"),
+            cfg=cfg,
+        )
+        if blocked:
+            msgs.append(f"decisions.{ts}.screen: watch_pool blocked by position gate: {reason}")
+    return msgs
+
+
+def _check_trend_top10_quality_block(
+    pack: dict[str, Any], trace: dict[str, Any], _profile: dict[str, Any]
+) -> list[str]:
+    # Validated at result assembly time; trace-only check is no-op
+    return []
 
 
 _CHECK_REGISTRY: dict[str, CheckFn] = {
@@ -507,6 +573,10 @@ _CHECK_REGISTRY: dict[str, CheckFn] = {
     "screen_trap_high_no_watch_pool": _check_screen_trap_high_no_watch_pool,
     "screen_facts_used_when_ranked": _check_screen_facts_used_when_ranked,
     "screen_quality_block_avoid": _check_screen_quality_block_avoid,
+    "screen_steps_match_lenses": _check_screen_steps_match_lenses,
+    "screen_watch_pool_observation_plan": _check_screen_watch_pool_observation_plan,
+    "screen_position_gate_watch_pool": _check_screen_position_gate_watch_pool,
+    "trend_top10_quality_block": _check_trend_top10_quality_block,
 }
 
 

@@ -1,0 +1,30 @@
+# 主板全市场扫描 universe 定义
+version: "1.0.0"
+
+board_filter:
+  # 沪市主板 + 深市主板（含原中小板 002）
+  include_prefixes:
+    - "600"
+    - "601"
+    - "603"
+    - "605"
+    - "000"
+    - "001"
+    - "002"
+    - "003"
+  exclude_exchanges:
+    - "BJ"
+  # 排除科创板 688、创业板 300（由 prefix 自然不含）
+  min_list_days: 120
+
+liquidity_prefilter:
+  # 0 = 不按流动性过滤/截断；主板全量（去 ST 等）时使用
+  min_amount_mn: 0
+  max_candidates: 0
+
+quality_prefilter:
+  block_st: true
+  block_blacklist: true
+  block_fraud_flags: true
+  # 连续亏损：fina_indicator 近年净利为负期数 ≥ quality_gate.chronic_loss.min_years_negative
+  block_chronic_loss: true

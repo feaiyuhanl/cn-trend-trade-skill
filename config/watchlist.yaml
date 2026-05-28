@@ -2,13 +2,13 @@
 # Tushare ts_code format. Screen: python cli.py --screen-watchlist
 
 version: "1.0.0"
-updated_at: "2026-05-19"
+updated_at: "2026-05-27"
 source: "雪球自选截图"
 
 # 自选筛选策略（见 skill/playbooks/watchlist-screen.md）
 screening_policy:
   output_label: watch_pool_only
-  max_symbols_per_run: 149
+  max_symbols_per_run: 170
   max_watch_pool_output: 15
   max_per_theme: 2
   exclude_if_1d_drop_pct: 4.0
@@ -21,7 +21,30 @@ screening_policy:
   batch_size: 25
   batch_retry: 2
   batch_sleep_sec: 0.8
+  bulk_fetch: true
+  max_symbols_mainboard_run: 0
+  skip_chronic_loss_on_enrich_if_universe_prefiltered: true
+  skip_missing_leaders_on_bulk_screen: true
+  fetch_concurrency:
+    calls_per_minute: 450
+    max_workers: 16
   archive_runs: true
+  # 全景报告 + 自动排序 + watch_pool 深度 finalize
+  panoramic_report: true
+  auto_finalize_watch_pool: true
+  ai_auto_rank: true
+  # 每次筛选重建 trace + 填 steps/打分拆解（避免复用旧 screen_trace 导致推理链为空）
+  refresh_screen_trace_each_run: true
+  # 扫描模式：watchlist=仅自选 | mainboard=主板预筛 | both=自选+主板（TOP10 来自主板）
+  universe_mode: watchlist
+  # 休盘后 live 跑批：先预检指数+样本股 K 线是否含当日；滞后则立即失败（勿白跑 3000 只）
+  require_fresh_session: true
+  min_symbol_session_ratio: 0.95
+  trend_top_n: 10
+  trend_top10_scope: auto
+  fetch_retry:
+    max_attempts: 3
+    backoff_sec: [65, 90, 120]
   # 方案 A：全自选由 AI 填 safety_rank（见 skill/playbooks/watchlist-screen.md）
   ai_rank_all_symbols: true
   forbid_output_words:
@@ -37,6 +60,7 @@ symbols_flat:
   - 000062.SZ
   - 000070.SZ
   - 000415.SZ
+  - 000417.SZ
   - 000531.SZ
   - 000537.SZ
   - 000601.SZ
@@ -44,10 +68,14 @@ symbols_flat:
   - 000682.SZ
   - 000683.SZ
   - 000690.SZ
+  - 000737.SZ
   - 000837.SZ
+  - 000880.SZ
   - 000899.SZ
+  - 000969.SZ
   - 000977.SZ
   - 000989.SZ
+  - 000997.SZ
   - 001208.SZ
   - 001211.SZ
   - 001266.SZ
@@ -56,19 +84,27 @@ symbols_flat:
   - 002008.SZ
   - 002015.SZ
   - 002049.SZ
+  - 002050.SZ
   - 002126.SZ
   - 002130.SZ
   - 002156.SZ
+  - 002164.SZ
   - 002185.SZ
   - 002213.SZ
   - 002281.SZ
   - 002335.SZ
   - 002371.SZ
+  - 002405.SZ
   - 002463.SZ
   - 002475.SZ
   - 002498.SZ
+  - 002527.SZ
   - 002533.SZ
+  - 002545.SZ
+  - 002568.SZ
   - 002599.SZ
+  - 002600.SZ
+  - 002703.SZ
   - 002709.SZ
   - 002812.SZ
   - 002902.SZ
@@ -83,6 +119,7 @@ symbols_flat:
   - 600098.SH
   - 600105.SH
   - 600160.SH
+  - 600163.SH
   - 600166.SH
   - 600196.SH
   - 600206.SH
@@ -93,6 +130,7 @@ symbols_flat:
   - 600338.SH
   - 600351.SH
   - 600379.SH
+  - 600452.SH
   - 600478.SH
   - 600487.SH
   - 600502.SH
@@ -103,6 +141,7 @@ symbols_flat:
   - 600666.SH
   - 600773.SH
   - 600816.SH
+  - 600835.SH
   - 600855.SH
   - 600867.SH
   - 600879.SH
@@ -115,6 +154,7 @@ symbols_flat:
   - 601288.SH
   - 601311.SH
   - 601330.SH
+  - 601566.SH
   - 601669.SH
   - 601698.SH
   - 601868.SH
@@ -187,6 +227,9 @@ watchlist:
     - {ts_code: "000062.SZ", name: "深圳华强"}
     - {ts_code: "000070.SZ", name: "特发信息"}
     - {ts_code: "000415.SZ", name: "渤海租赁"}
+    - ts_code: "000417.SZ"
+      name: "合百集团"
+      note: "主板趋势分TOP10 #1（20260527）"
     - {ts_code: "000531.SZ", name: "穗恒运A"}
     - {ts_code: "000537.SZ", name: "绿发电力"}
     - {ts_code: "000601.SZ", name: "韶能股份"}
@@ -194,10 +237,22 @@ watchlist:
     - {ts_code: "000682.SZ", name: "东方电子"}
     - {ts_code: "000683.SZ", name: "博源化工"}
     - {ts_code: "000690.SZ", name: "宝新能源"}
+    - ts_code: "000737.SZ"
+      name: "北方铜业"
+      note: "主板趋势分TOP10 #1（20260526）"
     - {ts_code: "000837.SZ", name: "秦川机床"}
+    - ts_code: "000880.SZ"
+      name: "潍柴重机"
+      note: "主板趋势分TOP10 #2（20260527）"
     - {ts_code: "000899.SZ", name: "赣能股份"}
+    - ts_code: "000969.SZ"
+      name: "安泰科技"
+      note: "主板趋势分TOP10 #2（20260526）"
     - {ts_code: "000977.SZ", name: "浪潮信息"}
     - {ts_code: "000989.SZ", name: "九芝堂"}
+    - ts_code: "000997.SZ"
+      name: "新大陆"
+      note: "主板趋势分TOP10 #3（20260526）"
     - {ts_code: "001208.SZ", name: "华菱线缆"}
     - {ts_code: "001211.SZ", name: "双枪科技"}
     - {ts_code: "001266.SZ", name: "宏英智能"}
@@ -209,19 +264,43 @@ watchlist:
     - {ts_code: "002008.SZ", name: "大族激光"}
     - {ts_code: "002015.SZ", name: "协鑫能科"}
     - {ts_code: "002049.SZ", name: "紫光国微"}
+    - ts_code: "002050.SZ"
+      name: "三花智控"
+      note: "主板趋势分TOP10 #5（20260527）"
     - {ts_code: "002126.SZ", name: "银轮股份"}
     - {ts_code: "002130.SZ", name: "沃尔核材"}
     - {ts_code: "002156.SZ", name: "通富微电"}
+    - ts_code: "002164.SZ"
+      name: "宁波东力"
+      note: "主板趋势分TOP10 #4（20260526）"
     - {ts_code: "002185.SZ", name: "华天科技"}
     - {ts_code: "002213.SZ", name: "大为股份"}
     - {ts_code: "002281.SZ", name: "光迅科技"}
     - {ts_code: "002335.SZ", name: "科华数据"}
     - {ts_code: "002371.SZ", name: "北方华创"}
+    - ts_code: "002405.SZ"
+      name: "四维图新"
+      note: "主板趋势分TOP10 #6（20260527）"
     - {ts_code: "002463.SZ", name: "沪电股份"}
     - {ts_code: "002475.SZ", name: "立讯精密"}
     - {ts_code: "002498.SZ", name: "汉缆股份"}
+    - ts_code: "002527.SZ"
+      name: "新时达"
+      note: "主板趋势分TOP10 #5（20260526）"
     - {ts_code: "002533.SZ", name: "金杯电工"}
+    - ts_code: "002545.SZ"
+      name: "东方铁塔"
+      note: "主板趋势分TOP10 #6（20260526）"
+    - ts_code: "002568.SZ"
+      name: "百润股份"
+      note: "主板趋势分TOP10 #7（20260527）"
     - {ts_code: "002599.SZ", name: "盛通股份"}
+    - ts_code: "002600.SZ"
+      name: "领益智造"
+      note: "主板趋势分TOP10 #7（20260526）"
+    - ts_code: "002703.SZ"
+      name: "浙江世宝"
+      note: "主板趋势分TOP10 #8（20260527）"
     - {ts_code: "002709.SZ", name: "天赐材料"}
     - {ts_code: "002812.SZ", name: "恩捷股份"}
     - {ts_code: "002902.SZ", name: "铭普光磁"}
@@ -235,6 +314,9 @@ watchlist:
     - {ts_code: "600089.SH", name: "特变电工"}
     - {ts_code: "600098.SH", name: "广州发展"}
     - {ts_code: "600160.SH", name: "巨化股份"}
+    - ts_code: "600163.SH"
+      name: "中闽能源"
+      note: "主板趋势分TOP10 #9（20260527）"
     - {ts_code: "600166.SH", name: "福田汽车"}
     - {ts_code: "600196.SH", name: "复星医药"}
     - {ts_code: "600206.SH", name: "有研新材"}
@@ -245,6 +327,9 @@ watchlist:
     - {ts_code: "600338.SH", name: "西藏珠峰"}
     - {ts_code: "600351.SH", name: "亚宝药业"}
     - {ts_code: "600379.SH", name: "宝光股份"}
+    - ts_code: "600452.SH"
+      name: "涪陵电力"
+      note: "主板趋势分TOP10 #8（20260526）"
     - {ts_code: "600478.SH", name: "科力远"}
     - {ts_code: "600487.SH", name: "亨通光电"}
     - {ts_code: "600502.SH", name: "安徽建工"}
@@ -256,6 +341,9 @@ watchlist:
     - {ts_code: "600666.SH", name: "奥瑞德"}
     - {ts_code: "600773.SH", name: "西藏城投"}
     - {ts_code: "600816.SH", name: "建元信托"}
+    - ts_code: "600835.SH"
+      name: "上海机电"
+      note: "主板趋势分TOP10 #9（20260526）"
     - {ts_code: "600855.SH", name: "航天长峰"}
     - {ts_code: "600867.SH", name: "通化东宝"}
     - {ts_code: "600879.SH", name: "航天电子"}
@@ -268,6 +356,9 @@ watchlist:
     - {ts_code: "601288.SH", name: "农业银行"}
     - {ts_code: "601311.SH", name: "驼驼股份"}
     - {ts_code: "601330.SH", name: "绿色动力"}
+    - ts_code: "601566.SH"
+      name: "九牧王"
+      note: "主板趋势分TOP10 #10（20260526）"
     - {ts_code: "601669.SH", name: "中国电建"}
     - {ts_code: "601698.SH", name: "中国卫通"}
     - {ts_code: "601868.SH", name: "中国能建"}
@@ -340,7 +431,7 @@ watchlist:
     - {ts_code: "000300.SZ", name: "沪深300"}
 
 meta:
-  stock_count: 147
+  stock_count: 164
   index_count: 2
   incomplete_from_screenshots:
     - "五洲新春(603667)、光迅科技(002281)、韶能股份(000601)、振德医疗(603301)：截图底部裁切，已按常见代码补全"

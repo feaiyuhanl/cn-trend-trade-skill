@@ -103,6 +103,8 @@ def evaluate_symbol(
     basic: dict[str, Any] | None = None,
     cfg: dict[str, Any] | None = None,
     manual_risk: dict[str, Any] | None = None,
+    skip_chronic_loss: bool = False,
+    rate_limiter=None,
 ) -> dict[str, Any]:
     cfg = cfg or load_quality_config()
     ts = ts_code.strip().upper()
@@ -135,7 +137,9 @@ def evaluate_symbol(
 
     cl_cfg = cfg.get("chronic_loss") or {}
     neg_years = 0
-    if pro and cl_cfg.get("block"):
+    if pro and cl_cfg.get("block") and not skip_chronic_loss:
+        if rate_limiter is not None:
+            rate_limiter.wait()
         neg_years = _fetch_fina_loss_years(pro, ts, cl_cfg.get("min_years_negative", 2) + 1)
         if neg_years >= int(cl_cfg.get("min_years_negative", 2)):
             if "chronic_loss" not in risk_flags:
@@ -162,6 +166,8 @@ def evaluate_symbols(
     *,
     pro=None,
     pack_mode: str = "live",
+    skip_chronic_loss: bool = False,
+    fetch_cfg: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     cfg = load_quality_config()
     manual_all = load_watchlist_risk()
@@ -169,16 +175,44 @@ def evaluate_symbols(
     if pro:
         basics = _fetch_basic_map(pro, ts_codes)
 
-    by_code: dict[str, Any] = {}
-    for ts in ts_codes:
-        ts = ts.strip().upper()
-        by_code[ts] = evaluate_symbol(
-            ts,
-            pro=pro,
-            basic=basics.get(ts),
-            cfg=cfg,
-            manual_risk=manual_all.get(ts),
+    parallel = bool(pro) and len(ts_codes) > 1
+    fetch_cfg = fetch_cfg or {}
+    if parallel and fetch_cfg.get("parallel_enabled", True):
+        from core.tushare_rate_limit import MinuteRateLimiter, load_fetch_concurrency_config, parallel_map
+
+        fcfg = {**load_fetch_concurrency_config(), **fetch_cfg}
+        limiter = MinuteRateLimiter(int(fcfg.get("calls_per_minute") or 450))
+
+        def _eval_one(ts: str) -> dict[str, Any]:
+            return evaluate_symbol(
+                ts,
+                pro=pro,
+                basic=basics.get(ts.strip().upper()),
+                cfg=cfg,
+                manual_risk=manual_all.get(ts.strip().upper()),
+                skip_chronic_loss=skip_chronic_loss,
+                rate_limiter=limiter,
+            )
+
+        by_code = parallel_map(
+            [t.strip().upper() for t in ts_codes],
+            _eval_one,
+            max_workers=int(fcfg.get("max_workers") or 16),
+            rate_limiter=None,
         )
+        by_code = {k: v for k, v in by_code.items() if v is not None}
+    else:
+        by_code = {}
+        for ts in ts_codes:
+            ts = ts.strip().upper()
+            by_code[ts] = evaluate_symbol(
+                ts,
+                pro=pro,
+                basic=basics.get(ts),
+                cfg=cfg,
+                manual_risk=manual_all.get(ts),
+                skip_chronic_loss=skip_chronic_loss,
+            )
 
     blocked = [t for t, v in by_code.items() if v["tier"] == "block"]
     return {

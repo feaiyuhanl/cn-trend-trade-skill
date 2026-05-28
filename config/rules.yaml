@@ -46,6 +46,26 @@ watchlist_screen_rules:
     description: quality tier=block 时 screen.action 须 avoid
     check: screen_quality_block_avoid
 
+  - id: SCREEN_STEPS_MATCH_LENSES
+    severity: error
+    description: panoramic 模式 steps 须与 lenses_applied 一致
+    check: screen_steps_match_lenses
+
+  - id: SCREEN_WATCH_POOL_OBSERVATION_PLAN
+    severity: warn
+    description: watch_pool 标的须有 observation_plan
+    check: screen_watch_pool_observation_plan
+
+  - id: SCREEN_POSITION_GATE_WATCH_POOL
+    severity: warn
+    description: watch_pool 标的须通过位置过滤（非 near_high / 非高位分位）
+    check: screen_position_gate_watch_pool
+
+  - id: TREND_TOP10_QUALITY_BLOCK
+    severity: warn
+    description: trend_top10 不得含 quality tier=block 标的
+    check: trend_top10_quality_block
+
 # 机器规则：id 稳定，便于 CHANGELOG / 测试 / Agent 引用
 machine_rules:
   - id: FACT_OBSERVATION_NUMBERS

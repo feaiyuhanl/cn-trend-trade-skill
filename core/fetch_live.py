@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -11,6 +12,14 @@ from core.config_loader import fetch_lookback, resolve_indices_for_profile
 from core.hints import compute_derived_hints
 from core.trade_date_util import attach_pack_trade_date_meta, expected_trade_session_date
 from core.ts_code import normalize_symbols
+from core.tushare_rate_limit import (
+    MinuteRateLimiter,
+    load_fetch_concurrency_config,
+    parallel_map,
+)
+
+_ROOT = Path(__file__).resolve().parent.parent
+_DAILY_CACHE_DIR = _ROOT / ".trend-trade" / "cache" / "daily_bars"
 
 _FETCH_STATUS: dict[str, str] = {}
 _FETCH_MESSAGES: list[str] = []
@@ -193,14 +202,83 @@ def _resample_bars(daily_df: pd.DataFrame, rule: str) -> pd.DataFrame:
     return ohlc.reset_index(drop=True)
 
 
-def _stock_name(pro, ts_code: str) -> str:
+def _stock_name(pro, ts_code: str, name_map: dict[str, str] | None = None) -> str:
+    ts = ts_code.strip().upper()
+    if name_map and ts in name_map:
+        return name_map[ts]
     try:
-        basic = pro.stock_basic(ts_code=ts_code, fields="ts_code,name")
+        basic = pro.stock_basic(ts_code=ts, fields="ts_code,name")
         if basic is not None and not basic.empty:
             return str(basic.iloc[0]["name"])
     except Exception:
         pass
     return ts_code
+
+
+def load_stock_name_map(pro) -> dict[str, str]:
+    """Single stock_basic pull (or disk cache via universe_mainboard)."""
+    from core.universe_mainboard import fetch_mainboard_stock_basic
+
+    rows = fetch_mainboard_stock_basic(pro)
+    if rows:
+        return {r["ts_code"]: str(r.get("name") or r["ts_code"]) for r in rows}
+    out: dict[str, str] = {}
+    try:
+        df = pro.stock_basic(
+            exchange="",
+            list_status="L",
+            fields="ts_code,name",
+        )
+        if df is not None and not df.empty:
+            for _, row in df.iterrows():
+                ts = str(row["ts_code"]).strip().upper()
+                out[ts] = str(row.get("name") or ts)
+    except Exception:
+        pass
+    return out
+
+
+def _daily_cache_path(ts_code: str, end: str) -> Path:
+    safe = ts_code.replace(".", "_")
+    return _DAILY_CACHE_DIR / f"{safe}_{end}.json"
+
+
+def _load_daily_cache(ts_code: str, end: str) -> pd.DataFrame | None:
+    path = _daily_cache_path(ts_code, end)
+    if not path.exists():
+        return None
+    try:
+        import json
+
+        rows = json.loads(path.read_text(encoding="utf-8"))
+        if not rows:
+            return None
+        df = pd.DataFrame(rows)
+        if df.empty:
+            return None
+        latest = str(df["trade_date"].max())
+        if latest < end:
+            # Stale cache written before Tushare/akshare had the expected session bar.
+            return None
+        return df
+    except Exception:
+        return None
+
+
+def _save_daily_cache(ts_code: str, end: str, df: pd.DataFrame) -> None:
+    if df is None or df.empty:
+        return
+    latest = str(df["trade_date"].max())
+    if latest < end:
+        return
+    _DAILY_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    import json
+
+    rows = df.where(pd.notna(df), None).to_dict(orient="records")
+    _daily_cache_path(ts_code, end).write_text(
+        json.dumps(rows, ensure_ascii=False),
+        encoding="utf-8",
+    )
 
 
 def _index_name(entry: dict[str, Any]) -> str:
@@ -216,11 +294,21 @@ def _fetch_instrument(
     index_group: str | None = None,
     category: str | None = None,
     lookback: dict[str, int],
+    rate_limiter: MinuteRateLimiter | None = None,
+    use_daily_cache: bool = False,
 ) -> dict[str, Any] | None:
     is_index = asset_type == "index"
     start, end = _end_start_dates(lookback.get("daily", 120))
+    daily_df: pd.DataFrame | None = None
+    if use_daily_cache and not is_index:
+        daily_df = _load_daily_cache(ts_code, end)
     try:
-        daily_df = _fetch_daily(pro, ts_code, start, end, is_index=is_index)
+        if daily_df is None or daily_df.empty:
+            if rate_limiter is not None:
+                rate_limiter.wait()
+            daily_df = _fetch_daily(pro, ts_code, start, end, is_index=is_index)
+            if use_daily_cache and not is_index and daily_df is not None and not daily_df.empty:
+                _save_daily_cache(ts_code, end, daily_df)
         daily_df = _merge_daily_supplement(
             daily_df, ts_code, start, end, is_index=is_index
         )
@@ -286,11 +374,47 @@ def _fetch_breadth(pro) -> list[dict[str, Any]] | None:
     return None
 
 
+def preflight_fresh_session(
+    *,
+    probe_symbols: list[str] | None = None,
+    min_symbol_ratio: float | None = None,
+    fail_on_stale: bool = True,
+) -> dict[str, Any]:
+    """Fast probe (indices + 1–2 liquid stocks, no disk cache) before bulk screen."""
+    from core.trade_date_util import DEFAULT_MIN_SYMBOL_SESSION_RATIO, assert_pack_session_fresh
+
+    syms = probe_symbols or ["600519.SH", "000001.SZ"]
+    ratio = (
+        float(min_symbol_ratio)
+        if min_symbol_ratio is not None
+        else DEFAULT_MIN_SYMBOL_SESSION_RATIO
+    )
+    pack = build_live_pack(
+        symbols=syms,
+        indices_profile="minimal",
+        enrich=False,
+        fetch_breadth=False,
+        fetch_indices=True,
+        fetch_cfg={"daily_bar_cache": False, "parallel_enabled": len(syms) > 1},
+        fail_on_stale=False,
+        min_symbol_session_ratio=ratio,
+    )
+    if fail_on_stale:
+        assert_pack_session_fresh(pack, fail_on_stale=True, min_symbol_ratio=ratio)
+    return pack.get("meta") or {}
+
+
 def build_live_pack(
     *,
     symbols: list[str],
     indices_profile: str = "comprehensive",
     run_id: str | None = None,
+    enrich: bool = True,
+    fetch_breadth: bool = True,
+    fetch_indices: bool = True,
+    fetch_cfg: dict[str, Any] | None = None,
+    fail_on_stale: bool = False,
+    min_symbol_session_ratio: float | None = None,
 ) -> dict[str, Any]:
     global _FETCH_STATUS, _FETCH_MESSAGES
     _FETCH_STATUS = {}
@@ -301,52 +425,93 @@ def build_live_pack(
         raise RuntimeError("TUSHARE_TOKEN not set; use --fixture or export TUSHARE_TOKEN")
 
     _status("tushare", "ok")
+    cfg = {**load_fetch_concurrency_config(), **(fetch_cfg or {})}
     symbols_norm = normalize_symbols(symbols)
     lookback = fetch_lookback()
+    name_map = load_stock_name_map(pro) if symbols_norm else {}
+    use_parallel = bool(cfg.get("parallel_enabled", True)) and len(symbols_norm) > 1
+    use_cache = bool(cfg.get("daily_bar_cache", True))
+    limiter = MinuteRateLimiter(int(cfg.get("calls_per_minute") or 450))
+
     symbol_instruments: list[dict[str, Any]] = []
-    for ts_code in symbols_norm:
-        name = _stock_name(pro, ts_code)
-        inst = _fetch_instrument(
-            pro, ts_code, asset_type="stock", name=name, lookback=lookback
+    if use_parallel:
+        def _worker(ts_code: str) -> dict[str, Any] | None:
+            return _fetch_instrument(
+                pro,
+                ts_code,
+                asset_type="stock",
+                name=name_map.get(ts_code, ts_code),
+                lookback=lookback,
+                rate_limiter=limiter,
+                use_daily_cache=use_cache,
+            )
+
+        fetched = parallel_map(
+            symbols_norm,
+            _worker,
+            max_workers=int(cfg.get("max_workers") or 16),
+            rate_limiter=None,
         )
-        if inst:
-            symbol_instruments.append(inst)
-        else:
-            _FETCH_MESSAGES.append(f"skip stock (no data): {ts_code}")
+        for ts_code in symbols_norm:
+            inst = fetched.get(ts_code)
+            if inst:
+                symbol_instruments.append(inst)
+            else:
+                _FETCH_MESSAGES.append(f"skip stock (no data): {ts_code}")
+    else:
+        for ts_code in symbols_norm:
+            name = name_map.get(ts_code) or _stock_name(pro, ts_code, name_map)
+            inst = _fetch_instrument(
+                pro,
+                ts_code,
+                asset_type="stock",
+                name=name,
+                lookback=lookback,
+                rate_limiter=limiter,
+                use_daily_cache=use_cache,
+            )
+            if inst:
+                symbol_instruments.append(inst)
+            else:
+                _FETCH_MESSAGES.append(f"skip stock (no data): {ts_code}")
 
     if not symbol_instruments:
         raise RuntimeError(f"No stock data fetched for: {symbols_norm}")
 
-    index_entries = resolve_indices_for_profile(indices_profile)
     index_instruments: list[dict[str, Any]] = []
-    for entry in index_entries:
-        ts_code = entry["ts_code"]
-        optional = bool(entry.get("optional"))
-        try:
-            inst = _fetch_instrument(
-                pro,
-                ts_code,
-                asset_type="index",
-                name=_index_name(entry),
-                index_group=entry.get("index_group"),
-                category=entry.get("category"),
-                lookback=lookback,
-            )
-            if inst:
-                index_instruments.append(inst)
-            elif not optional:
-                _FETCH_MESSAGES.append(f"required index missing: {ts_code}")
-        except Exception as e:
-            if optional:
-                _FETCH_MESSAGES.append(f"optional index skip {ts_code}: {e}")
-            else:
-                _FETCH_MESSAGES.append(f"index fail {ts_code}: {e}")
+    if fetch_indices:
+        index_entries = resolve_indices_for_profile(indices_profile)
+        for entry in index_entries:
+            ts_code = entry["ts_code"]
+            optional = bool(entry.get("optional"))
+            try:
+                inst = _fetch_instrument(
+                    pro,
+                    ts_code,
+                    asset_type="index",
+                    name=_index_name(entry),
+                    index_group=entry.get("index_group"),
+                    category=entry.get("category"),
+                    lookback=lookback,
+                    rate_limiter=limiter,
+                    use_daily_cache=False,
+                )
+                if inst:
+                    index_instruments.append(inst)
+                elif not optional:
+                    _FETCH_MESSAGES.append(f"required index missing: {ts_code}")
+            except Exception as e:
+                if optional:
+                    _FETCH_MESSAGES.append(f"optional index skip {ts_code}: {e}")
+                else:
+                    _FETCH_MESSAGES.append(f"index fail {ts_code}: {e}")
 
-    breadth = _fetch_breadth(pro)
-    if breadth:
-        _status("breadth", "ok")
-    else:
-        _status("breadth", "skip", "limit_list_d unavailable or empty")
+    breadth = _fetch_breadth(pro) if fetch_breadth else None
+    if fetch_breadth:
+        if breadth:
+            _status("breadth", "ok")
+        else:
+            _status("breadth", "skip", "limit_list_d unavailable or empty")
 
     rid = run_id or datetime.now().strftime("%Y%m%d-%H%M%S")
     pack: dict[str, Any] = {
@@ -372,6 +537,14 @@ def build_live_pack(
     }
     from core.pack_enrich import enrich_a_share_context
 
-    enrich_a_share_context(pack)
-    attach_pack_trade_date_meta(pack, pro=pro)
+    if enrich:
+        enrich_a_share_context(pack, fetch_cfg=cfg)
+    from core.trade_date_util import DEFAULT_MIN_SYMBOL_SESSION_RATIO, assert_pack_session_fresh
+
+    ratio = (
+        float(min_symbol_session_ratio)
+        if min_symbol_session_ratio is not None
+        else DEFAULT_MIN_SYMBOL_SESSION_RATIO
+    )
+    assert_pack_session_fresh(pack, fail_on_stale=fail_on_stale, min_symbol_ratio=ratio)
     return pack

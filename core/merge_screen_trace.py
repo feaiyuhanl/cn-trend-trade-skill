@@ -35,6 +35,22 @@ def row_from_ai_screen(
     facts = screen.get("facts_used") or []
     if facts:
         row["facts_used"] = list(facts)
+    op = screen.get("observation_plan")
+    if op:
+        row["observation_plan"] = op
+    for key in (
+        "score_breakdown",
+        "trap_vol_reason",
+        "action_rule",
+        "theme_id",
+        "theme_label",
+        "theme_lifecycle",
+        "theme_lifecycle_rule",
+        "position_band",
+        "price_percentile_2y",
+    ):
+        if screen.get(key) is not None:
+            row[key] = screen[key]
     return row
 
 
